@@ -1,0 +1,5 @@
+,New gene,New phenotype for known gene,New MOI for known gene and phenotype,New classification rules,New ClinVar entries,Limited panel,Non-coding variant,QC fail,Missed,CNV
+New association,33,12,7,0,0,0,0,0,0,0
+New rules/entries,0,0,0,20,20,0,0,0,0,0
+Missed first pass,0,0,0,0,0,21,7,4,5,0
+CNV,0,0,0,0,0,0,0,0,0,16
