@@ -6,11 +6,7 @@ Script to evaluate the performance of Talos and Exomiser against a "Gold Standar
 
 import argparse
 import csv
-import gzip
 import json
-import os
-import string
-from pathlib import Path
 from typing import Optional
 
 from cloudpathlib import CloudPath
@@ -129,20 +125,21 @@ class Family(BaseModel):
 
     @property
     def talos_candidate_count_w_phe_match(self):
+        """Return the number of talos candidates with a phenotype match"""
+
         if not self.talos_results:
             return None
 
-        """Return the number of talos candidates with a phenotype match"""
         return len(
             [r for r in self.talos_results.variants if r.phenotype_labels or r.panels.forced or r.panels.matched]
         )
 
     @property
     def talos_candidate_gene_count(self):
+        """Return the number of talos candidate GENES"""
         if not self.talos_results:
             return None
 
-        """Return the number of talos candidate GENES"""
         return len(set([r.gene for r in self.talos_results.variants]))
 
     @property
@@ -332,6 +329,11 @@ def generate_summary_stats(families):
 
     # Exomiser stats
     total_solved_and_run_exomiser = len([f for f in families if f.solved and f.solved_by_exomiser is not None])
+
+    # bail if exomiser results not provided
+    if not total_solved_and_run_exomiser:
+        return summary_stats, ""
+
     total_solved_and_run_exomiser_snv_only = len(
         [f for f in families if f.solved and f.solved_by_exomiser is not None and f.variant_types == {"SNV_INDEL"}]
     )
@@ -505,6 +507,10 @@ def main(
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
             "exomiser_results_dir": "gs://cpg-acute-care-main-analysis/exome/exomiser_14_results",
         },
+        # "rgp": {
+        #     "talos_results": "gs://cpg-broad-rgp-main-upload/talos_truth_data/pheno_annotated_report_2024_10_29.json",
+        #     "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
+        # },
     }
 
     # Parse families from truth data
@@ -538,14 +544,16 @@ def main(
             family.find_causitive_variants_in_talos_resuts()
 
             # look for exomiser results
-            family.exomiser_results = family.find_exomiser_results(subcohort_dict["exomiser_results_dir"])
+            if "exomiser_results_dir" in subcohort_dict:
+                family.exomiser_results = family.find_exomiser_results(subcohort_dict["exomiser_results_dir"])
 
         families.extend(sub_cohort_families)
 
     # Write summary stats to stdout
     summary_stats, exomiser_summary = generate_summary_stats(families)
     print(summary_stats)
-    print("\n\n", "#Exomiser summary:\n", exomiser_summary)
+    if exomiser_summary:
+        print("\n\n", "#Exomiser summary:\n", exomiser_summary)
 
     # Write per family results to tsv
     if summary_tsv:
