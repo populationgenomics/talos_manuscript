@@ -1,5 +1,0 @@
-,New gene-disease association,New phenotype for known gene,New MOI for known gene and phenotype,New classification rules,New ClinVar entries,Limited panel,Non-coding variant,QC fail,Human error,CNV,SV
-Gene-disease associations,20,3,1,0,0,0,0,0,0,0,0
-Variant reclassifications,0,0,0,0,5,0,0,0,0,0,0
-Missed in original analysis,0,0,0,0,0,2,0,3,3,0,0
-CNV/SV,0,0,0,0,0,0,0,0,0,10,0
