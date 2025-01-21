@@ -1,0 +1,16 @@
+Old_Phrasing,Reason,Reason_Type,2019,2020,2021,2022,All
+New gene since initial analysis,New gene-disease association,Gene-disease Associations,9,12,11,2,34
+Reclassification due to change in classification rules,New classification rules,Variant Reclassifications,4,9,6,3,22
+Limited panel,LImited Panel,Missed in Manual Analysis,7,11,5,5,28
+Reclassification due to additional ClinVar entries,New ClinVar entries,Variant Reclassifications,10,6,5,5,26
+New phenotype for gene,New phenotype for known gene,Gene-disease Associations,6,5,1,5,17
+New MOI,New MOI for known gene and phenotype,Gene-disease Associations,3,3,2,3,11
+Noncoding variant with new Clinvar entries,New ClinVar entries,Variant Reclassifications,2,0,0,1,3
+Failed QC,QC Fail,Missed in Manual Analysis,2,0,2,0,4
+Missed,Human error,Missed in Manual Analysis,2,3,1,4,10
+Missed CNV,CNV,CNV/SV,24,11,12,17,64
+Missed SV,SV,CNV/SV,0,0,0,0,0
+Noncoding variant with additional evidence,New ClinVar entries,Variant Reclassifications,1,0,0,0,1
+New ClinVar entries for alternative missense change,New ClinVar entries,Variant Reclassifications,0,0,0,0,0
+Reclassification due to new evidence,New ClinVar entries,Variant Reclassifications,0,1,0,0,1
+Noncoding variant,Non-coding variant,Missed in Manual Analysis,1,3,1,2,7
