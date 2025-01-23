@@ -230,9 +230,6 @@ class Family(BaseModel):
         unsolved by exomiser and the rank is set to None
         """
 
-        # we don't get here unless we have exomiser results
-        self.exomiser_results_exists = True
-
         self.exomiser_results = {}
 
         # result blocks in this file look like
@@ -253,6 +250,9 @@ class Family(BaseModel):
             # will only keep the highest ranking variant
             self.exomiser_results[new_key] = min([entry["rank"] for entry in values])
 
+        if self.exomiser_results:
+            self.exomiser_results_exists = True
+
         # Find the rank of the causative variants in exomiser results
         if self.variant1:
             rank_1 = self.exomiser_results.get(self.variant1.variant_id)
@@ -266,7 +266,6 @@ class Family(BaseModel):
 
         # Set exomiser_rank if ALL causative variants are found
         # if two variants are found, use the highest rank
-        self.solved_by_exomiser = False
         if self.variant1 and self.variant2:
             if rank_1 is not None and rank_2 is not None:
                 self.exomiser_rank = max(rank_1, rank_2)
