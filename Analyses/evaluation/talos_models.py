@@ -6,12 +6,12 @@ from pydantic import BaseModel, Field
 
 # Steal the talos models
 
-NON_HOM_CHROM = ['X', 'Y', 'MT', 'M']
+NON_HOM_CHROM = ["X", "Y", "MT", "M"]
 CHROM_ORDER = list(map(str, range(1, 23))) + NON_HOM_CHROM
 
 # some kind of version tracking
-CURRENT_VERSION = '1.1.0'
-ALL_VERSIONS = [None, '1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.1.0']
+CURRENT_VERSION = "1.1.0"
+ALL_VERSIONS = [None, "1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.1.0"]
 
 # ratios for use in AB testing
 MAX_WT = 0.15
@@ -19,7 +19,7 @@ MIN_HET = 0.25
 MAX_HET = 0.75
 MIN_HOM = 0.85
 _GRANULAR_DATE = None
-TIMEZONE = zoneinfo.ZoneInfo('Australia/Brisbane')
+TIMEZONE = zoneinfo.ZoneInfo("Australia/Brisbane")
 
 
 def get_granular_date():
@@ -28,20 +28,21 @@ def get_granular_date():
     """
     global _GRANULAR_DATE
     if _GRANULAR_DATE is None:
-        _GRANULAR_DATE = datetime.now(tz=TIMEZONE).strftime('%Y-%m-%d')
+        _GRANULAR_DATE = datetime.now(tz=TIMEZONE).strftime("%Y-%m-%d")
     return _GRANULAR_DATE
+
 
 class FileTypes(Enum):
     """
     enumeration of permitted input file types
     """
 
-    HAIL_TABLE = '.ht'
-    MATRIX_TABLE = '.mt'
-    PED = 'ped'
-    VCF = '.vcf'
-    VCF_GZ = '.vcf.gz'
-    VCF_BGZ = '.vcf.bgz'
+    HAIL_TABLE = ".ht"
+    MATRIX_TABLE = ".mt"
+    PED = "ped"
+    VCF = ".vcf"
+    VCF_GZ = ".vcf.gz"
+    VCF_BGZ = ".vcf.bgz"
 
 
 class PhenoPacketHpo(BaseModel):
@@ -68,7 +69,7 @@ class Coordinates(BaseModel):
         """
         forms a string representation: chr-pos-ref-alt
         """
-        return f'{self.chrom}-{self.pos}-{self.ref}-{self.alt}'
+        return f"{self.chrom}-{self.pos}-{self.ref}-{self.alt}"
 
     def __lt__(self, other) -> bool:
         """
@@ -92,7 +93,16 @@ class VariantCommon(BaseModel):
     """
 
     coordinates: Coordinates = Field(repr=True)
-    info: dict[str, str | int | float | list[str] | list[float] | dict[str, dict[str, int] | str | int] | bool] = Field(default_factory=dict)
+    info: dict[
+        str,
+        str
+        | int
+        | float
+        | list[str]
+        | list[float]
+        | dict[str, dict[str, int] | str | int]
+        | bool,
+    ] = Field(default_factory=dict)
     het_samples: set[str] = Field(default_factory=set, exclude=True)
     hom_samples: set[str] = Field(default_factory=set, exclude=True)
     boolean_categories: list[str] = Field(default_factory=list, exclude=True)
@@ -167,7 +177,9 @@ class VariantCommon(BaseModel):
         Returns:
             True if support only
         """
-        return self.has_support and not (self.category_non_support or self.sample_categorised_check(sample_id))
+        return self.has_support and not (
+            self.category_non_support or self.sample_categorised_check(sample_id)
+        )
 
     def category_values(self, sample: str) -> set[str]:
         """
@@ -186,16 +198,20 @@ class VariantCommon(BaseModel):
         for category in self.sample_categories:
             cat_samples = self.info[category]
             if not isinstance(cat_samples, list):
-                raise TypeError(f'Sample categories should be a list: {cat_samples}')
+                raise TypeError(f"Sample categories should be a list: {cat_samples}")
             if sample in cat_samples:
-                categories.add(category.removeprefix('categorysample'))
+                categories.add(category.removeprefix("categorysample"))
 
         categories.update(
-            {bool_cat.replace('categoryboolean', '') for bool_cat in self.boolean_categories if self.info[bool_cat]},
+            {
+                bool_cat.replace("categoryboolean", "")
+                for bool_cat in self.boolean_categories
+                if self.info[bool_cat]
+            },
         )
 
         if self.has_support:
-            categories.add('support')
+            categories.add("support")
 
         return categories
 
@@ -213,7 +229,7 @@ class VariantCommon(BaseModel):
         for category in self.sample_categories:
             cat_samples = self.info[category]
             assert isinstance(cat_samples, list)
-            if any(sam in cat_samples for sam in [sample_id, 'all']):
+            if any(sam in cat_samples for sam in [sample_id, "all"]):
                 return True
 
         return False
@@ -230,24 +246,32 @@ class VariantCommon(BaseModel):
         Returns:
             True if the variant is categorised for this sample
         """
-        big_cat = self.has_boolean_categories or self.sample_categorised_check(sample_id)
+        big_cat = self.has_boolean_categories or self.sample_categorised_check(
+            sample_id
+        )
         if allow_support:
             return big_cat or self.has_support
         return big_cat
 
-    def check_ab_ratio(self, *args, **kwargs) -> set[str]:  # noqa: ARG002, ANN002, ANN003
+    def check_ab_ratio(
+        self, *args, **kwargs
+    ) -> set[str]:  # noqa: ARG002, ANN002, ANN003
         """
         dummy method for AB ratio checking - not implemented for SVs
         """
         return set()
 
-    def get_sample_flags(self, *args, **kwargs) -> set[str]:  # noqa: ARG002, ANN002, ANN003
+    def get_sample_flags(
+        self, *args, **kwargs
+    ) -> set[str]:  # noqa: ARG002, ANN002, ANN003
         """
         dummy method for flag checking - not implemented for SVs (yet)
         """
         return set()
 
-    def check_read_depth(self, *args, **kwargs) -> set[str]:  # noqa: ARG002, ANN002, ANN003
+    def check_read_depth(
+        self, *args, **kwargs
+    ) -> set[str]:  # noqa: ARG002, ANN002, ANN003
         """
         dummy method for read depth checking - not implemented for SVs
         """
@@ -274,7 +298,9 @@ class SmallVariant(VariantCommon):
         """
         return self.check_ab_ratio(sample) | self.check_read_depth(sample)
 
-    def check_read_depth(self, sample: str, threshold: int = 10, var_is_cat_1: bool = False) -> set[str]:
+    def check_read_depth(
+        self, sample: str, threshold: int = 10, var_is_cat_1: bool = False
+    ) -> set[str]:
         """
         flag low read depth for this sample
 
@@ -287,7 +313,7 @@ class SmallVariant(VariantCommon):
             return a flag if this sample has low read depth
         """
         if self.depths[sample] < threshold and not var_is_cat_1:
-            return {'Low Read Depth'}
+            return {"Low Read Depth"}
         return set()
 
     def check_ab_ratio(self, sample: str) -> set[str]:
@@ -304,8 +330,12 @@ class SmallVariant(VariantCommon):
         hom = sample in self.hom_samples
         variant_ab = self.ab_ratios.get(sample, 0.0)
 
-        if (variant_ab <= MAX_WT) or (het and not MIN_HET <= variant_ab <= MAX_HET) or (hom and variant_ab <= MIN_HOM):
-            return {'AB Ratio'}
+        if (
+            (variant_ab <= MAX_WT)
+            or (het and not MIN_HET <= variant_ab <= MAX_HET)
+            or (hom and variant_ab <= MIN_HOM)
+        ):
+            return {"AB Ratio"}
         return set()
 
 
@@ -361,7 +391,10 @@ class ReportVariant(BaseModel):
         """
         makes reported variants comparable
         """
-        return self.sample == other.sample and self.var_data.coordinates == other.var_data.coordinates
+        return (
+            self.sample == other.sample
+            and self.var_data.coordinates == other.var_data.coordinates
+        )
 
     def __lt__(self, other):
         return self.var_data.coordinates < other.var_data.coordinates
@@ -388,7 +421,7 @@ class PanelShort(BaseModel):
 
     id: int
     name: str = Field(default_factory=str)
-    version: str = 'UNKNOWN'
+    version: str = "UNKNOWN"
 
 
 class PanelApp(BaseModel):
@@ -414,7 +447,7 @@ class HistoricSampleVariant(BaseModel):
     first_tagged: str
     support_vars: set[str] = Field(
         default_factory=set,
-        description='supporting variants if this has been identified in a comp-het',
+        description="supporting variants if this has been identified in a comp-het",
     )
     independent: bool = Field(default=True)
     clinvar_stars: int | None = None
@@ -451,9 +484,9 @@ class ResultMeta(BaseModel):
 
 
 class MemberSex(Enum):
-    MALE = 'male'
-    FEMALE = 'female'
-    UNKNOWN = 'unknown'
+    MALE = "male"
+    FEMALE = "female"
+    UNKNOWN = "unknown"
 
 
 class FamilyMembers(BaseModel):
@@ -535,7 +568,7 @@ class PedigreeMember(BaseModel):
     father: str | None = None
     sex: str
     affected: str
-    ext_id: str = 'Missing'
+    ext_id: str = "Missing"
     hpo_terms: list[PhenoPacketHpo] = Field(default_factory=list)
 
 
