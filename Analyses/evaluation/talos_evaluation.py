@@ -367,9 +367,7 @@ def generate_summary_stats(families):
     """
 
     # Exomiser stats
-    total_solved_and_run_exomiser = len(
-        [f for f in families if f.solved and f.solved_by_exomiser]
-    )
+    total_solved_and_run_exomiser = len([f for f in families if (f.solved and f.exomiser_results_exists)])
 
     # bail if exomiser results not provided
     if not total_solved_and_run_exomiser:
@@ -380,11 +378,12 @@ def generate_summary_stats(families):
             f
             for f in families
             if f.solved
-            and f.solved_by_exomiser
+            and f.exomiser_results_exists
             and f.variant_types == {"SNV_INDEL"}
         ]
     )
     solved_by_exomiser = len([f for f in families if f.solved_by_exomiser])
+    solved_by_exomiser_snv = len([f for f in families if f.solved_by_exomiser and f.variant_types == {"SNV_INDEL"}])
     solved_by_exomiser_top1 = len(
         [f for f in families if f.solved_by_exomiser and f.exomiser_rank == 1]
     )
@@ -395,24 +394,20 @@ def generate_summary_stats(families):
         [f for f in families if f.solved_by_exomiser and f.exomiser_rank <= 10]
     )
 
-    solved_by_exomiser_set = set(
-        [f.family_id for f in families if f.solved_by_exomiser]
-    )
-    solved_by_talos_set = set(
-        [
-            f.family_id
-            for f in families
-            if f.solved_by_talos and f.solved_by_exomiser
-        ]
-    )
+    solved_by_exomiser_set = {f.family_id for f in families if f.solved_by_exomiser}
+    solved_by_talos_set = {
+        f.family_id
+        for f in families
+        if f.solved_by_talos and f.exomiser_results_exists
+    }
 
     exomiser_summary = f"""
-        Solved by exomiser: {solved_by_exomiser} ({solved_by_exomiser/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
+        Solved by exomiser: {solved_by_exomiser} ({solved_by_exomiser/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser_snv/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
         Talos solved {len([f for f in families if (f.solved_by_exomiser and f.solved_by_talos)])} of these ({len([f for f in families if f.solved_by_exomiser is not None and f.solved_by_talos and f.variant_types == set(["SNV_INDEL"]) ])} SNV only)
         Solved by exomiser (top 1): {solved_by_exomiser_top1} ({solved_by_exomiser_top1/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser_top1/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
         Solved by exomiser (top 5): {solved_by_exomiser_top5} ({solved_by_exomiser_top5/total_solved_and_run_exomiser*100:.1f}%), {solved_by_exomiser_top5/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
         Solved by exomiser (top 10): {solved_by_exomiser_top10} ({solved_by_exomiser_top10/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser_top10/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
-        Solved by exomiser and not talos: {len(solved_by_exomiser_set - solved_by_talos_set)}: {", ".join(solved_by_exomiser_set - solved_by_talos_set)}
+        Exomiser solves not found by Talos: {len(solved_by_exomiser_set - solved_by_talos_set)}: {", ".join(solved_by_exomiser_set - solved_by_talos_set)}
         Solved by talos and not exomiser (SNV only): {len(solved_by_talos_set - solved_by_exomiser_set)}: {", ".join(solved_by_talos_set - solved_by_exomiser_set)}'
     """
     return summary_stats, exomiser_summary
