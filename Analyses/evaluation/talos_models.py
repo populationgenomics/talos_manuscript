@@ -1,6 +1,7 @@
 import zoneinfo
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +12,6 @@ CHROM_ORDER = list(map(str, range(1, 23))) + NON_HOM_CHROM
 
 # some kind of version tracking
 CURRENT_VERSION = '1.1.0'
-ALL_VERSIONS = [None, '1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.1.0']
 
 # ratios for use in AB testing
 MAX_WT = 0.15
@@ -92,7 +92,7 @@ class VariantCommon(BaseModel):
     """
 
     coordinates: Coordinates = Field(repr=True)
-    info: dict[str, str | int | float | list[str] | list[float] | dict[str, str] | bool] = Field(default_factory=dict)
+    info: dict[str, Any] = Field(default_factory=dict)
     het_samples: set[str] = Field(default_factory=set, exclude=True)
     hom_samples: set[str] = Field(default_factory=set, exclude=True)
     boolean_categories: list[str] = Field(default_factory=list, exclude=True)
@@ -354,6 +354,8 @@ class ReportVariant(BaseModel):
     support_vars: set[str] = Field(default_factory=set)
     # log whether there was an increase in ClinVar star rating since the last run
     clinvar_increase: bool = Field(default=False)
+    # exomiser results - I'd like to store this in a cleaner way in future
+    exomiser_results: list[str] = Field(default_factory=list)
 
     def __eq__(self, other):
         """
