@@ -183,28 +183,28 @@ class Family(BaseModel):
         """Return a set of variant types that are causative in this family"""
         return {x.variant_type for x in [self.variant1, self.variant2] if x and x.variant_type}
 
-    def find_causitive_variants_in_talos_results(self):
-        """For each causitive variant, look for a matching variant in the talos candidate list
+    def find_causative_variants_in_talos_results(self):
+        """For each causative variant, look for a matching variant in the talos candidate list
 
-        sets talos_hit attribute on the causitive variant/s
+        sets talos_hit attribute on the causative variant/s
         """
         if self.talos_results:
             if self.variant1:
-                self.variant1.talos_hit = self.find_causitive_variant_in_talos(self.variant1)
+                self.variant1.talos_hit = self.find_causative_variant_in_talos(self.variant1)
             if self.variant2:
-                self.variant2.talos_hit = self.find_causitive_variant_in_talos(self.variant2)
+                self.variant2.talos_hit = self.find_causative_variant_in_talos(self.variant2)
 
-    def find_causitive_variant_in_talos(self, causitive_variant: CausativeVariant) -> Optional[ReportVariant]:
+    def find_causative_variant_in_talos(self, causative_variant: CausativeVariant) -> Optional[ReportVariant]:
         """
-        For a given causitive variant, find a matching variant in the talos candidate list
+        For a given causative variant, find a matching variant in the talos candidate list
         """
         for r in self.talos_results:
-            if r.var_data.coordinates.string_format == causitive_variant.variant_id:
+            if r.var_data.coordinates.string_format == causative_variant.variant_id:
                 return r
 
-            if causitive_variant.variant_type == "CNV_SV" and isinstance(r.var_data, StructuralVariant):
+            if causative_variant.variant_type == "CNV_SV" and isinstance(r.var_data, StructuralVariant):
                 # CNV_SV match based on gene symbol in the predicted_lof field
-                if causitive_variant.gene in r.var_data.info["predicted_lof"].split(","):
+                if causative_variant.gene in r.var_data.info["predicted_lof"].split(","):
                     return r
         return None
 
@@ -214,10 +214,10 @@ class Family(BaseModel):
 
         If exomiser result file is found self.exomiser_results_exists is set to True
 
-        If the causitive variant/s are found in the exomiser results, the self.exomiser_rank
+        If the causative variant/s are found in the exomiser results, the self.exomiser_rank
         is set to the highest rank.
 
-        If only one causitive variant is found for an AR condition, the family is considered
+        If only one causative variant is found for an AR condition, the family is considered
         unsolved by exomiser and the rank is set to None
         """
 
@@ -588,7 +588,7 @@ def main(
 
             # Add talos results to family
             family.talos_results = talos_results.results[use_id].variants
-            family.find_causitive_variants_in_talos_results()
+            family.find_causative_variants_in_talos_results()
 
             if exomiser_results:
                 family.find_exomiser_results(exomiser_results)
