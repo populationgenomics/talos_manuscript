@@ -17,6 +17,27 @@ from talos_models import ParticipantResults, ReportVariant, StructuralVariant
 VARIANT_TYPES_BASIC = {"SNV_INDEL", "CNV_SV"}
 VARIANT_TYPES_ALL = {"SNV_INDEL", "CNV_SV", "STR", "MITO", "MITO_SV"}
 
+COHORT_CONFIG = {
+    "acute-care": {
+        "genome": {
+            "talos_results": "gs://cpg-acute-care-main/reanalysis/2024-12-17/pheno_annotated_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
+            "exomiser_results_dir": "gs://cpg-acute-care-main-analysis/exomiser_14_results",
+        },
+        "exome": {
+            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2024-12-10/pheno_annotated_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
+            "exomiser_results_dir": "gs://cpg-acute-care-main-analysis/exome/exomiser_14_results",
+        },
+    },
+    "RGP": {
+        "rgp": {
+            "talos_results": "gs://cpg-broad-rgp-main-upload/talos_truth_data/2412xx_RDG_pheno_annotated_report.json",
+            "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
+        },
+    },
+}
+
 
 class CausativeVariant(BaseModel):
     variant_id: str
@@ -303,29 +324,45 @@ def generate_summary_stats(families):
     total_families = len(families)
     solved_families = len([f for f in families if f.solved])
     solved_in_scope_families = len([f for f in families if f.solved_in_scope])
-    solved_by_talos = len([f for f in families if f.solved_by_talos_and_in_scope])
-    solved_by_talos_w_phen_match = len(
-        [f for f in families if f.solved_by_talos_and_in_scope and f.talos_phenotype_match_found]
+    # solved_by_talos = len([f for f in families if f.solved_by_talos_and_in_scope])
+    solved_by_talos = len([f for f in families if f.solved_by_talos])
+    solved_by_talos_w_phen_match = len([f for f in families if f.solved_by_talos and f.talos_phenotype_match_found])
+    solved_by_talos_in_scope = len([f for f in families if f.solved_by_talos and f.solved_in_scope])
+    solved_by_talos_w_phen_match_in_scope = len(
+        [f for f in families if f.solved_by_talos and f.solved_in_scope and f.talos_phenotype_match_found]
     )
 
     pct_talos_solved_all = solved_by_talos / solved_families * 100
-    pct_talos_solved_in_scope = solved_by_talos / solved_in_scope_families * 100
+    pct_talos_solved_in_scope = solved_by_talos_in_scope / solved_in_scope_families * 100
     pct_talos_solved_w_phen_match = solved_by_talos_w_phen_match / solved_families * 100
-    pct_talos_solved_w_phen_match_in_scope = solved_by_talos_w_phen_match / solved_in_scope_families * 100
+    pct_talos_solved_w_phen_match_in_scope = solved_by_talos_w_phen_match_in_scope / solved_in_scope_families * 100
 
     summary_stats = f"""
         Total families: {total_families}
         Families considered solved: {solved_families} ({solved_families/total_families*100:.1f}%)
         Families considered solved and in scope: {solved_in_scope_families} ({solved_in_scope_families/solved_families*100:.1f}%
 
-        Solved by talos: {solved_by_talos} ({pct_talos_solved_in_scope:.1f}% of in scope, {pct_talos_solved_all:.1f}% of all solved)
-        Solved by talos with phenotype match: {solved_by_talos_w_phen_match} ({pct_talos_solved_w_phen_match_in_scope:.1f}% of in scope, {pct_talos_solved_w_phen_match:.1f}% of all solved)
+        Solved by talos: {solved_by_talos} ( {pct_talos_solved_all:.1f}% of all solved)
+        Solved by talos with phenotype match: {solved_by_talos_w_phen_match} ( {pct_talos_solved_w_phen_match:.1f}% of all solved)
+
+        Solved by talos and IN scope: {solved_by_talos_in_scope} ({pct_talos_solved_in_scope:.1f}% of in scope)
+        Solved by talos with phenotype match and IN scope: {solved_by_talos_w_phen_match_in_scope} ({pct_talos_solved_w_phen_match_in_scope:.1f}% of in scope)
+        Solved by talos and OUT of scope: {len([f for f in families if f.solved_by_talos and not f.solved_in_scope])}
+
+        NOT solved by talos - IN scope: {len([f for f in families if f.solved_in_scope and not f.solved_by_talos])}
+        NOT solved by talos - OUT of scope: {len([f for f in families if f.solved and not f.solved_by_talos and not f.solved_in_scope])}
 
         Average number of talos candidates per family: {sum([f.talos_candidate_count for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
         Average number of talos candidates per family with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
         Average number of talos candidate genes per family: {sum([f.talos_candidate_gene_count for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
         Average number of talos candidate genes per family with phenotype match: {sum([f.talos_candidate_gene_count_w_phe_match for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
-    """
+
+        Total number of talos candidates: {sum([f.talos_candidate_count for f in families if f.talos_results])}
+        Total number of talos candidates with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])}
+
+        Pct of candidates that are causative: {solved_by_talos / sum([f.talos_candidate_count for f in families if f.talos_results])  * 100:.1f}%
+        Pct of candidates with phenotype match that are causative: {solved_by_talos_w_phen_match / sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])  * 100:.1f}%
+"""
 
     # Exomiser stats
     total_solved_and_run_exomiser = len([f for f in families if f.solved and f.solved_by_exomiser is not None])
@@ -346,6 +383,7 @@ def generate_summary_stats(families):
     solved_by_talos_set = set([f.family_id for f in families if f.solved_by_talos and f.solved_by_exomiser is not None])
 
     exomiser_summary = f"""
+        Families solved and is scope for exomiser: {total_solved_and_run_exomiser_snv_only}
         Solved by exomiser: {solved_by_exomiser} ({solved_by_exomiser/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
         Talos solved {len([f for f in families if f.solved_by_exomiser is not None and f.solved_by_talos])} of these ({len([f for f in families if f.solved_by_exomiser is not None and f.solved_by_talos and f.variant_types == set(["SNV_INDEL"]) ])} SNV only)
         Solved by exomiser (top 1): {solved_by_exomiser_top1} ({solved_by_exomiser_top1/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser_top1/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
@@ -451,6 +489,7 @@ def cli_main():
     parser.add_argument(
         "in_scope_variants", help="Varint types to include in the evaluation", choices=["all", "core"], default="core"
     )
+    parser.add_argument("--cohort", help="Cohort to evaluate", choices=["acute-care", "RGP"], default="acute-care")
     parser.add_argument(
         "--incomplete_penetrance",
         help="Consider incomplete penetrance variants as in scope",
@@ -468,6 +507,8 @@ def cli_main():
 
     args, unknown = parser.parse_known_args()
 
+    sub_cohorts_config = COHORT_CONFIG[args.cohort]
+
     if args.in_scope_variants == "all":
         in_scope_variants = VARIANT_TYPES_ALL
     else:
@@ -477,6 +518,7 @@ def cli_main():
         raise ValueError(unknown)
     main(
         in_scope_variants=in_scope_variants,
+        sub_cohorts_config=sub_cohorts_config,
         process_only_trios=args.process_full_trios_only,
         in_scope_incomplete_penetrance=args.incomplete_penetrance,
         in_scope_intergenic=args.intergenic_in_scope,
@@ -487,6 +529,7 @@ def cli_main():
 
 def main(
     in_scope_variants: set,
+    sub_cohorts_config: dict,
     process_only_trios: bool,
     in_scope_incomplete_penetrance: bool,
     in_scope_intergenic: bool,
@@ -495,27 +538,9 @@ def main(
 ):
     """ """
 
-    # Should pass this as a config file but...
-    sub_cohorts = {
-        "genome": {
-            "talos_results": "gs://cpg-acute-care-main/reanalysis/2024-12-10/pheno_annotated_report.json",
-            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
-            "exomiser_results_dir": "gs://cpg-acute-care-main-analysis/exomiser_14_results",
-        },
-        "exome": {
-            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2024-12-10/pheno_annotated_report.json",
-            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
-            "exomiser_results_dir": "gs://cpg-acute-care-main-analysis/exome/exomiser_14_results",
-        },
-        # "rgp": {
-        #     "talos_results": "gs://cpg-broad-rgp-main-upload/talos_truth_data/pheno_annotated_report_2024_10_29.json",
-        #     "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
-        # },
-    }
-
     # Parse families from truth data
     families = []
-    for subcohort_label, subcohort_dict in sub_cohorts.items():
+    for subcohort_label, subcohort_dict in sub_cohorts_config.items():
         talos_results_json = json.load(CloudPath(subcohort_dict["talos_results"]).open())
 
         sub_cohort_families = parse_truth_data(
