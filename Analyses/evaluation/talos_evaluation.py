@@ -364,7 +364,7 @@ def generate_summary_stats(families):
 
     # Exomiser stats
 
-    # whole collection of families where Exomiser ran, and was solved by either Talos or Exomiser
+    # whole collection of families where Exomiser ran, and was solved by manual analysis
     families_with_exomiser_results = [f for f in families if f.exomiser_results_exists and f.solved]
     # of those, families with only small variants - only these are in scope for exomiser analysis
     families_exomiser_snv_only = [f for f in families_with_exomiser_results if f.variant_types == {'SNV_INDEL'}]
