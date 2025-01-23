@@ -368,7 +368,7 @@ def generate_summary_stats(families):
 
     # Exomiser stats
     total_solved_and_run_exomiser = len(
-        [f for f in families if f.solved and f.solved_by_exomiser is not None]
+        [f for f in families if f.solved and f.solved_by_exomiser]
     )
 
     # bail if exomiser results not provided
@@ -380,7 +380,7 @@ def generate_summary_stats(families):
             f
             for f in families
             if f.solved
-            and f.solved_by_exomiser is not None
+            and f.solved_by_exomiser
             and f.variant_types == {"SNV_INDEL"}
         ]
     )
@@ -402,7 +402,7 @@ def generate_summary_stats(families):
         [
             f.family_id
             for f in families
-            if f.solved_by_talos and f.solved_by_exomiser is not None
+            if f.solved_by_talos and f.solved_by_exomiser
         ]
     )
 
