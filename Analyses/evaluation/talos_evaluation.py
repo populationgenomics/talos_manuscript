@@ -408,7 +408,7 @@ def generate_summary_stats(families):
 
     exomiser_summary = f"""
         Solved by exomiser: {solved_by_exomiser} ({solved_by_exomiser/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
-        Talos solved {len([f for f in families if f.solved_by_exomiser is not None and f.solved_by_talos])} of these ({len([f for f in families if f.solved_by_exomiser is not None and f.solved_by_talos and f.variant_types == set(["SNV_INDEL"]) ])} SNV only)
+        Talos solved {len([f for f in families if (f.solved_by_exomiser and f.solved_by_talos)])} of these ({len([f for f in families if f.solved_by_exomiser is not None and f.solved_by_talos and f.variant_types == set(["SNV_INDEL"]) ])} SNV only)
         Solved by exomiser (top 1): {solved_by_exomiser_top1} ({solved_by_exomiser_top1/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser_top1/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
         Solved by exomiser (top 5): {solved_by_exomiser_top5} ({solved_by_exomiser_top5/total_solved_and_run_exomiser*100:.1f}%), {solved_by_exomiser_top5/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
         Solved by exomiser (top 10): {solved_by_exomiser_top10} ({solved_by_exomiser_top10/total_solved_and_run_exomiser*100:.1f}%, {solved_by_exomiser_top10/total_solved_and_run_exomiser_snv_only*100:.1f}% of SNV only)
