@@ -11,7 +11,7 @@ from typing import Optional
 
 from cloudpathlib import CloudPath
 from pydantic import BaseModel, Field, field_validator
-from talos_models import ParticipantResults, ReportVariant, StructuralVariant
+from talos_models import ResultData, ReportVariant, StructuralVariant
 
 # Constants
 VARIANT_TYPES_BASIC = {"SNV_INDEL", "CNV_SV"}
@@ -142,7 +142,7 @@ class Family(BaseModel):
         """Return the number of talos candidates"""
         if not self.talos_results:
             return None
-        return len(self.talos_results.variants)
+        return len(self.talos_results)
 
     @property
     def talos_candidate_count_w_phe_match(self):
@@ -152,7 +152,7 @@ class Family(BaseModel):
             return None
 
         return len(
-            [r for r in self.talos_results.variants if r.phenotype_labels or r.panels.forced or r.panels.matched]
+            [r for r in self.talos_results if r.phenotype_labels or r.panels.forced or r.panels.matched]
         )
 
     @property
@@ -161,7 +161,7 @@ class Family(BaseModel):
         if not self.talos_results:
             return None
 
-        return len(set([r.gene for r in self.talos_results.variants]))
+        return len(set([r.gene for r in self.talos_results]))
 
     @property
     def talos_candidate_gene_count_w_phe_match(self):
@@ -172,7 +172,7 @@ class Family(BaseModel):
             set(
                 [
                     r.gene
-                    for r in self.talos_results.variants
+                    for r in self.talos_results
                     if r.phenotype_labels or r.panels.forced or r.panels.matched
                 ]
             )
@@ -183,12 +183,12 @@ class Family(BaseModel):
         """Return a set of variant types that are causative in this family"""
         return {x.variant_type for x in [self.variant1, self.variant2] if x and x.variant_type}
 
-    def find_causitive_variants_in_talos_resuts(self):
+    def find_causitive_variants_in_talos_results(self):
         """For each causitive variant, look for a matching variant in the talos candidate list
 
         sets talos_hit attribute on the causitive variant/s
         """
-        if self.talos_results and self.talos_results.variants:
+        if self.talos_results:
             if self.variant1:
                 self.variant1.talos_hit = self.find_causitive_variant_in_talos(self.variant1)
             if self.variant2:
@@ -198,7 +198,7 @@ class Family(BaseModel):
         """
         For a given causitive variant, find a matching variant in the talos candidate list
         """
-        for r in self.talos_results.variants:
+        for r in self.talos_results:
             if r.var_data.coordinates.string_format == causitive_variant.variant_id:
                 return r
 
@@ -396,7 +396,7 @@ def generate_summary_stats(families):
 
     # top number is families with a small-variant solve, where we have run exomiser, all other numbers relative to that
     exomiser_summary = f"""
-        Families solved and in scope for exomiser: {total_solved_and_run_exomiser_snv_only}
+        Families solved and in scope for exomiser (SNV only): {total_solved_and_run_exomiser_snv_only}
         Solved by exomiser: {total_solved_by_exomiser} ({total_solved_by_exomiser/total_solved_and_run_exomiser_snv_only*100:.1f}%)
         Talos solved {len(solved_by_talos_set_snv_only)} of these ({len(solved_by_talos_set_snv_only)/total_solved_and_run_exomiser_snv_only*100:.1f}%)
         Solved by both methods: {solved_by_both_set_snv_only} ({solved_by_both_set_snv_only/total_solved_and_run_exomiser_snv_only*100:.1f}%)
@@ -404,7 +404,7 @@ def generate_summary_stats(families):
         Solved by exomiser (top 5): {solved_by_exomiser_top5} ({solved_by_exomiser_top5/total_solved_and_run_exomiser*100:.1f}%)
         Solved by exomiser (top 10): {solved_by_exomiser_top10} ({solved_by_exomiser_top10/total_solved_and_run_exomiser*100:.1f}%)
         Solved by exomiser and not talos: {len(solved_by_exomiser_set - solved_by_talos_set_snv_only)}: {", ".join(solved_by_exomiser_set - solved_by_talos_set_snv_only)}
-        Solved by talos and not exomiser (SNV only): {len(solved_by_talos_set_snv_only - solved_by_exomiser_set)}: {", ".join(solved_by_talos_set_snv_only - solved_by_exomiser_set)}
+        Solved by talos and not exomiser: {len(solved_by_talos_set_snv_only - solved_by_exomiser_set)}: {", ".join(solved_by_talos_set_snv_only - solved_by_exomiser_set)}
     """
     return summary_stats, exomiser_summary
 
@@ -556,6 +556,7 @@ def main(
     families = []
     for subcohort_label, subcohort_dict in sub_cohorts_config.items():
         talos_results_json = json.load(CloudPath(subcohort_dict["talos_results"]).open())
+        talos_results = ResultData.model_validate(talos_results_json)
 
         sub_cohort_families = parse_truth_data(
             truth_tsv_path=subcohort_dict["truth_tsv_path"],
@@ -577,17 +578,17 @@ def main(
         # Annotate families with talos results
         for family in sub_cohort_families:
             # Allow for sample_id or individual_id to be used as the key in the talos results
-            if family.sample_id in talos_results_json["results"]:
+            if family.sample_id in talos_results.results:
                 use_id = family.sample_id
-            elif family.individual_id in talos_results_json["results"]:
+            elif family.individual_id in talos_results.results:
                 use_id = family.individual_id
             else:
                 family.talos_results = None
                 continue
 
             # Add talos results to family
-            family.talos_results = ParticipantResults.parse_obj(talos_results_json["results"][use_id])
-            family.find_causitive_variants_in_talos_resuts()
+            family.talos_results = talos_results.results[use_id].variants
+            family.find_causitive_variants_in_talos_results()
 
             if exomiser_results:
                 family.find_exomiser_results(exomiser_results)
