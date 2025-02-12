@@ -10,7 +10,7 @@ import collections
 import json
 from typing import Optional
 
-from cloudpathlib import CloudPath
+from cloudpathlib import AnyPath
 from pydantic import BaseModel, Field, field_validator
 from talos_models import ResultData, ReportVariant, StructuralVariant
 
@@ -302,7 +302,7 @@ def parse_truth_data(
     Returns a list of Family objects
     """
     families = []
-    for fam in csv.DictReader(CloudPath(truth_tsv_path).open(), delimiter="\t"):
+    for fam in csv.DictReader(AnyPath(truth_tsv_path).open(), delimiter="\t"):
         if fam["variant_1_type"]:
             v1 = CausativeVariant(
                 variant_id=fam["variant_1"].strip().removeprefix("chr").replace(":", "-"),
@@ -592,7 +592,7 @@ def main(
     # Parse families from truth data
     families = []
     for subcohort_label, subcohort_dict in sub_cohorts_config.items():
-        talos_results_json = json.load(CloudPath(subcohort_dict["talos_results"]).open())
+        talos_results_json = json.load(AnyPath(subcohort_dict["talos_results"]).open())
         talos_results = ResultData.model_validate(talos_results_json)
 
         sub_cohort_families = parse_truth_data(
@@ -608,7 +608,7 @@ def main(
         # look for exomiser results
         if exomiser_results_path := subcohort_dict.get("exomiser_results"):
             # single aggregate of all exomiser results
-            exomiser_results = json.load(CloudPath(exomiser_results_path).open())
+            exomiser_results = json.load(AnyPath(exomiser_results_path).open())
         else:
             exomiser_results = None
 
