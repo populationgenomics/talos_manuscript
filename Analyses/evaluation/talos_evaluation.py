@@ -6,10 +6,11 @@ Script to evaluate the performance of Talos and Exomiser against a "Gold Standar
 
 import argparse
 import csv
+import collections
 import json
 from typing import Optional
 
-from cloudpathlib import CloudPath
+from cloudpathlib import AnyPath
 from pydantic import BaseModel, Field, field_validator
 from talos_models import ResultData, ReportVariant, StructuralVariant
 
@@ -20,12 +21,12 @@ VARIANT_TYPES_ALL = {"SNV_INDEL", "CNV_SV", "STR", "MITO", "MITO_SV"}
 COHORT_CONFIG = {
     "acute-care": {
         "genome": {
-            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-01-22/pheno_annotated_report.json",
+            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-02-12/pheno_annotated_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
             "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
         },
         "exome": {
-            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-01-22/pheno_annotated_report.json",
+            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-02-12/pheno_annotated_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
             "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
         },
@@ -266,6 +267,25 @@ class Family(BaseModel):
             self.exomiser_rank = rank_1
             self.solved_by_exomiser = True
 
+    def summarise_catagory_counts(self):
+        """
+            Summaries the number of candidates labeled with each category.
+            Returns a pair of Counter objects, one for all candidates and one for
+            only the candidates with a single category label
+        """
+
+        if not self.talos_results:
+            return None
+
+        all_counts = collections.Counter()
+        unique_counts = collections.Counter()
+
+        for r in self.talos_results:
+            all_counts.update(r.categories)
+            if len(r.categories) == 1:
+                unique_counts.update(r.categories)
+
+        return all_counts, unique_counts
 
 def parse_truth_data(
     truth_tsv_path: str,
@@ -282,7 +302,7 @@ def parse_truth_data(
     Returns a list of Family objects
     """
     families = []
-    for fam in csv.DictReader(CloudPath(truth_tsv_path).open(), delimiter="\t"):
+    for fam in csv.DictReader(AnyPath(truth_tsv_path).open(), delimiter="\t"):
         if fam["variant_1_type"]:
             v1 = CausativeVariant(
                 variant_id=fam["variant_1"].strip().removeprefix("chr").replace(":", "-"),
@@ -335,6 +355,18 @@ def generate_summary_stats(families):
     pct_talos_solved_w_phen_match = solved_by_talos_w_phen_match / solved_families * 100
     pct_talos_solved_w_phen_match_in_scope = solved_by_talos_w_phen_match_in_scope / solved_in_scope_families * 100
 
+    candidate_counts = collections.Counter()
+    unique_candidate_counts = collections.Counter()
+    for f in families:
+        if f.talos_results:
+            fam_candidate_counts, fam_unique_candidate_counts = f.summarise_catagory_counts()
+            # print(f.summarise_catagory_counts())
+            candidate_counts += fam_candidate_counts
+            unique_candidate_counts += fam_unique_candidate_counts
+
+    candidate_counts_string = '\n'.join([f"\t\t{k}: {v}" for k, v in candidate_counts.most_common()])
+    unique_candidate_counts_string = '\n'.join([f"\t\t{k}: {v}" for k, v in unique_candidate_counts.most_common()])
+
     summary_stats = f"""
         Total families: {total_families}
         Families considered solved: {solved_families} ({solved_families/total_families*100:.1f}%)
@@ -358,9 +390,14 @@ def generate_summary_stats(families):
         Total number of talos candidates: {sum([f.talos_candidate_count for f in families if f.talos_results])}
         Total number of talos candidates with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])}
 
+        Count of talos candidates per category:
+    {candidate_counts_string}
+        Count of talos candidates per category (candidate with only a single category):
+    {unique_candidate_counts_string}
+
         Pct of candidates that are causative: {solved_by_talos / sum([f.talos_candidate_count for f in families if f.talos_results])  * 100:.1f}%
         Pct of candidates with phenotype match that are causative: {solved_by_talos_w_phen_match / sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])  * 100:.1f}%
-"""
+        """
 
     # Exomiser stats
 
@@ -555,7 +592,7 @@ def main(
     # Parse families from truth data
     families = []
     for subcohort_label, subcohort_dict in sub_cohorts_config.items():
-        talos_results_json = json.load(CloudPath(subcohort_dict["talos_results"]).open())
+        talos_results_json = json.load(AnyPath(subcohort_dict["talos_results"]).open())
         talos_results = ResultData.model_validate(talos_results_json)
 
         sub_cohort_families = parse_truth_data(
@@ -571,7 +608,7 @@ def main(
         # look for exomiser results
         if exomiser_results_path := subcohort_dict.get("exomiser_results"):
             # single aggregate of all exomiser results
-            exomiser_results = json.load(CloudPath(exomiser_results_path).open())
+            exomiser_results = json.load(AnyPath(exomiser_results_path).open())
         else:
             exomiser_results = None
 
