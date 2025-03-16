@@ -382,10 +382,10 @@ def generate_summary_stats(families):
         NOT solved by talos - IN scope: {len([f for f in families if f.solved_in_scope and not f.solved_by_talos])}
         NOT solved by talos - OUT of scope: {len([f for f in families if f.solved and not f.solved_by_talos and not f.solved_in_scope])}
 
-        Average number of talos candidates per family: {sum([f.talos_candidate_count for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
-        Average number of talos candidates per family with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
-        Average number of talos candidate genes per family: {sum([f.talos_candidate_gene_count for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
-        Average number of talos candidate genes per family with phenotype match: {sum([f.talos_candidate_gene_count_w_phe_match for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
+        Average number of talos candidates per family: {sum([f.talos_candidate_count for f in families if f.talos_results]) / len(families):.1f}
+        Average number of talos candidates per family with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) / len(families):.1f}
+        Average number of talos candidate genes per family: {sum([f.talos_candidate_gene_count for f in families if f.talos_results]) / len(families):.1f}
+        Average number of talos candidate genes per family with phenotype match: {sum([f.talos_candidate_gene_count_w_phe_match for f in families if f.talos_results]) / len(families):.1f}
 
         Total number of talos candidates: {sum([f.talos_candidate_count for f in families if f.talos_results])}
         Total number of talos candidates with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])}
