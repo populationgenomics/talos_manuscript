@@ -21,7 +21,7 @@ VARIANT_TYPES_ALL = {"SNV_INDEL", "CNV_SV", "STR", "MITO", "MITO_SV"}
 COHORT_CONFIG = {
     "acute-care": {
         "genome": {
-            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-02-12/pheno_annotated_report.json",
+            "talos_results": "gs://cpg-acute-care-test/exome/reanalysis/2025-03-15/pheno_annotated_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
             "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
         },
@@ -65,7 +65,8 @@ class Family(BaseModel):
     variant1: Optional[CausativeVariant] = None
     variant2: Optional[CausativeVariant] = None
 
-    talos_results: list[ReportVariant] = Field(default_factory=list)
+    analysed_by_talos: bool = False
+    talos_results: list[ReportVariant] | None = Field(default_factory=list)
     _talos_phenotype_match_found: Optional[bool] = None
 
     solved_by_exomiser: bool = False
@@ -340,8 +341,12 @@ def parse_truth_data(
 
 def generate_summary_stats(families):
     total_families = len(families)
+    families_analysed_by_talos = len([f for f in families if f.analysed_by_talos])
     solved_families = len([f for f in families if f.solved])
+    solved_families_analysed_by_talos = len([f for f in families if f.solved and f.analysed_by_talos])
     solved_in_scope_families = len([f for f in families if f.solved_in_scope])
+    solved_in_scope_families_analysed_by_talos = len([f for f in families if f.solved_in_scope and f.analysed_by_talos])
+
     # solved_by_talos = len([f for f in families if f.solved_by_talos_and_in_scope])
     solved_by_talos = len([f for f in families if f.solved_by_talos])
     solved_by_talos_w_phen_match = len([f for f in families if f.solved_by_talos and f.talos_phenotype_match_found])
@@ -350,10 +355,10 @@ def generate_summary_stats(families):
         [f for f in families if f.solved_by_talos and f.solved_in_scope and f.talos_phenotype_match_found]
     )
 
-    pct_talos_solved_all = solved_by_talos / solved_families * 100
-    pct_talos_solved_in_scope = solved_by_talos_in_scope / solved_in_scope_families * 100
-    pct_talos_solved_w_phen_match = solved_by_talos_w_phen_match / solved_families * 100
-    pct_talos_solved_w_phen_match_in_scope = solved_by_talos_w_phen_match_in_scope / solved_in_scope_families * 100
+    pct_talos_solved_all = solved_by_talos / solved_families_analysed_by_talos * 100
+    pct_talos_solved_in_scope = solved_by_talos_in_scope / solved_in_scope_families_analysed_by_talos * 100
+    pct_talos_solved_w_phen_match = solved_by_talos_w_phen_match / solved_families_analysed_by_talos * 100
+    pct_talos_solved_w_phen_match_in_scope = solved_by_talos_w_phen_match_in_scope / solved_in_scope_families_analysed_by_talos * 100
 
     candidate_counts = collections.Counter()
     unique_candidate_counts = collections.Counter()
@@ -370,7 +375,8 @@ def generate_summary_stats(families):
     summary_stats = f"""
         Total families: {total_families}
         Families considered solved: {solved_families} ({solved_families/total_families*100:.1f}%)
-        Families considered solved and in scope: {solved_in_scope_families} ({solved_in_scope_families/solved_families*100:.1f}%
+        Families considered solved and in scope: {solved_in_scope_families} ({solved_in_scope_families/solved_families*100:.1f}%)
+        Families considered solved and in scope, analysed by Talos: {solved_in_scope_families_analysed_by_talos} ({solved_in_scope_families_analysed_by_talos/solved_families_analysed_by_talos*100:.1f}%)
 
         Solved by talos: {solved_by_talos} ( {pct_talos_solved_all:.1f}% of all solved)
         Solved by talos with phenotype match: {solved_by_talos_w_phen_match} ( {pct_talos_solved_w_phen_match:.1f}% of all solved)
@@ -382,10 +388,10 @@ def generate_summary_stats(families):
         NOT solved by talos - IN scope: {len([f for f in families if f.solved_in_scope and not f.solved_by_talos])}
         NOT solved by talos - OUT of scope: {len([f for f in families if f.solved and not f.solved_by_talos and not f.solved_in_scope])}
 
-        Average number of talos candidates per family: {sum([f.talos_candidate_count for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
-        Average number of talos candidates per family with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
-        Average number of talos candidate genes per family: {sum([f.talos_candidate_gene_count for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
-        Average number of talos candidate genes per family with phenotype match: {sum([f.talos_candidate_gene_count_w_phe_match for f in families if f.talos_results]) / len([f for f in families if f.talos_results]):.1f}
+        Average number of talos candidates per family: {sum([f.talos_candidate_count for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+        Average number of talos candidates per family with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+        Average number of talos candidate genes per family: {sum([f.talos_candidate_gene_count for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+        Average number of talos candidate genes per family with phenotype match: {sum([f.talos_candidate_gene_count_w_phe_match for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
 
         Total number of talos candidates: {sum([f.talos_candidate_count for f in families if f.talos_results])}
         Total number of talos candidates with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])}
@@ -622,6 +628,8 @@ def main(
             else:
                 family.talos_results = None
                 continue
+
+            family.analysed_by_talos = True
 
             # Add talos results to family
             family.talos_results = talos_results.results[use_id].variants
