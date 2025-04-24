@@ -1,16 +1,16 @@
 Old_Phrasing,Reason,Reason_Type,All,NDD,Cardiac,Renal
-New gene since initial analysis,New gene-disease association,Gene-disease Associations,35,23,3,2
+New gene since initial analysis,New gene-disease association,Gene-disease Associations,41,27,4,2
 Reclassification due to change in classification rules,New classification rules,Variant Reclassifications,22,0,17,1
-Limited panel,Limited Panel,Missed in Manual Analysis,28,3,5,7
-Reclassification due to additional ClinVar entries,New ClinVar entries,Variant Reclassifications,26,6,10,3
+Limited panel,LImited Panel,Missed in Manual Analysis,29,3,6,7
+Reclassification due to additional ClinVar entries,New ClinVar entries,Variant Reclassifications,28,6,11,3
 New phenotype for gene,New phenotype for known gene,Gene-disease Associations,19,7,1,9
-New MOI,New MOI for known gene and phenotype,Gene-disease Associations,11,2,7,1
+New MOI,New MOI for known gene and phenotype,Gene-disease Associations,13,2,7,3
 Noncoding variant with new Clinvar entries,New ClinVar entries,Variant Reclassifications,3,0,0,0
 Failed QC,QC Fail,Missed in Manual Analysis,4,4,0,0
 Missed,Human error,Missed in Manual Analysis,10,5,0,2
-Missed CNV,CNV,CNV/SV,70,36,4,13
+Missed CNV,CNV,CNV/SV,68,36,4,11
 Missed SV,SV,CNV/SV,1,0,0,1
 Noncoding variant with additional evidence,New ClinVar entries,Variant Reclassifications,1,0,1,0
-New ClinVar entries for alternative missense change,New ClinVar entries,Variant Reclassifications,0,0,0,0
+New ClinVar entries for alternative missense change,New ClinVar entries,Variant Reclassifications,1,0,0,1
 Reclassification due to new evidence,New ClinVar entries,Variant Reclassifications,1,0,1,0
 Noncoding variant,Non-coding variant,Missed in Manual Analysis,7,1,2,3
