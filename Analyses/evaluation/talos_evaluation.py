@@ -21,12 +21,24 @@ VARIANT_TYPES_ALL = {"SNV_INDEL", "CNV_SV", "STR", "MITO", "MITO_SV"}
 COHORT_CONFIG = {
     "acute-care": {
         "genome": {
-            "talos_results": "gs://cpg-acute-care-test/exome/reanalysis/2025-03-15/pheno_annotated_report.json",
+            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-04-03/pheno_annotated_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
             "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
         },
         "exome": {
-            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-02-12/pheno_annotated_report.json",
+            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-04-03/pheno_annotated_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
+            "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+        },
+    },
+    "acute-care-singletons": {
+        "genome": {
+            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
+            "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+        },
+        "exome": {
+            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
             "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
         },
@@ -206,7 +218,7 @@ class Family(BaseModel):
 
             if causative_variant.variant_type == "CNV_SV" and isinstance(r.var_data, StructuralVariant):
                 # CNV_SV match based on gene symbol in the predicted_lof field
-                if causative_variant.gene in r.var_data.info["predicted_lof"].split(","):
+                if causative_variant.gene in r.var_data.info["lof"].split(","):
                     return r
         return None
 
@@ -546,7 +558,7 @@ def cli_main():
     parser.add_argument(
         "in_scope_variants", help="Varint types to include in the evaluation", choices=["all", "core"], default="core"
     )
-    parser.add_argument("--cohort", help="Cohort to evaluate", choices=["acute-care", "RGP"], default="acute-care")
+    parser.add_argument("--cohort", help="Cohort to evaluate", choices=COHORT_CONFIG.keys(), default="acute-care")
     parser.add_argument(
         "--incomplete_penetrance",
         help="Consider incomplete penetrance variants as in scope",
@@ -598,6 +610,10 @@ def main(
     # Parse families from truth data
     families = []
     for subcohort_label, subcohort_dict in sub_cohorts_config.items():
+        print(f"Processing subcohort {subcohort_label} from {subcohort_dict['talos_results']}")
+        print(f"Truth data: {subcohort_dict['truth_tsv_path']}")
+        print(f"process_only_trios: {process_only_trios}")
+        print(f"Variant types: {in_scope_variants}, mosaics: {in_scope_mosaics}, incomplete penetrance: {in_scope_incomplete_penetrance}, intergenic: {in_scope_intergenic}")
         talos_results_json = json.load(AnyPath(subcohort_dict["talos_results"]).open())
         talos_results = ResultData.model_validate(talos_results_json)
 
