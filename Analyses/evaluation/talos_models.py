@@ -378,7 +378,7 @@ class PanelDetail(BaseModel):
     all_moi: set[str] = Field(default_factory=set)
     moi: str = Field(default_factory=str)
     new: set[int] = Field(default_factory=set)
-    panels: set[int] = Field(default_factory=set)
+    panels: dict[int, PanelShort] = Field(default_factory=dict)
 
 
 class PanelShort(BaseModel):
@@ -445,7 +445,7 @@ class ResultMeta(BaseModel):
     version: str = Field(default_factory=str)
     family_breakdown: dict[str, int] = Field(default_factory=dict)
     input_file: str = Field(default_factory=str)
-    panels: list[PanelShort] = Field(default_factory=list)
+    panels: dict[int, PanelShort] = Field(default_factory=dict)
     run_datetime: str = Field(default=get_granular_date())
     projects: list[str] = Field(default_factory=list)
 
