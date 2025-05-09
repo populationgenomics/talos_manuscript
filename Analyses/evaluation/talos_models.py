@@ -22,6 +22,17 @@ _GRANULAR_DATE = None
 TIMEZONE = zoneinfo.ZoneInfo('Australia/Brisbane')
 
 
+class PanelShort(BaseModel):
+    """
+    Short panel summary, used in the metadata section
+    This object contains the coarse panel details
+    """
+
+    id: int
+    name: str = Field(default_factory=str)
+    version: str = 'UNKNOWN'
+
+
 def get_granular_date():
     """
     cached getter/setter
@@ -467,7 +478,7 @@ class ParticipantMeta(BaseModel):
     family_id: str
     members: dict[str, FamilyMembers] = Field(default_factory=dict)
     phenotypes: list[PhenoPacketHpo] = Field(default_factory=list)
-    panel_details: dict[int, str] = Field(default_factory=dict)
+    panel_details: dict[int, PanelShort] = Field(default_factory=dict)
     solved: bool = Field(default=False)
     present_in_small: bool = Field(default=False)
     present_in_sv: bool = Field(default=False)
