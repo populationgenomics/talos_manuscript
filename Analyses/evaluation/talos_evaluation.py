@@ -2,6 +2,16 @@
 
 """
 Script to evaluate the performance of Talos and Exomiser against a "Gold Standard" truth set.
+
+There is a change to the counting logic
+- Talos initially records each Variant~Gene combination and uses that when determining inheritance (each gene ~its MOI)
+- The final step was to condense these results back into a single 'event' per variant, potentially combining across
+    multiple genes
+- Talos was recently changed to stop doing this, and retains each variant~gene event separately
+- This means that the report can contain the same report repeated for each Gene it has been annotated with, but does
+    mean that all annotations are accurate (e.g. transcript consequences are not lost in the squashing)
+- To compensate, variant counts in this script are done on unique "CHR-POS-REF-ALT" signatures, instead of counting each
+    unique event.
 """
 
 import argparse
@@ -12,7 +22,17 @@ from typing import Optional
 
 from cloudpathlib import AnyPath
 from pydantic import BaseModel, Field, field_validator
-from talos_models import ResultData, ReportVariant, StructuralVariant
+
+
+# n.b. to run this you will need to install Talos
+# the only part of Talos which is relevant to this script is the models, but these models deviate from the committed
+# extract here over time, and Talos contains liftover methods, so this script should continue to be viable even after
+# substantial diversion.
+# The Talos repository is available at github.com/populationgenomics/talos
+# Recommended: create a local virtual environment, clone Talos, "pip install ." in the root of the Talos repository,
+# All dependencies should then be satisfied to run this script
+from talos import models
+
 
 # Constants
 VARIANT_TYPES_BASIC = {"SNV_INDEL", "CNV_SV"}
@@ -21,34 +41,34 @@ VARIANT_TYPES_ALL = {"SNV_INDEL", "CNV_SV", "STR", "MITO", "MITO_SV"}
 COHORT_CONFIG = {
     "acute-care": {
         "genome": {
-            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-04-03/pheno_annotated_report.json",
+            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-08-08/full_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
             "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
         },
         "exome": {
-            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-04-03/pheno_annotated_report.json",
+            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-08-08/full_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
             "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
         },
     },
-    "acute-care-singletons": {
-        "genome": {
-            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
-            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
-            "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
-        },
-        "exome": {
-            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
-            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
-            "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
-        },
-    },
-    "RGP": {
-        "rgp": {
-            "talos_results": "gs://cpg-broad-rgp-main-upload/talos_truth_data/2412xx_RDG_pheno_annotated_report.json",
-            "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
-        },
-    },
+    # "acute-care-singletons": {
+    #     "genome": {
+    #         "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
+    #         "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
+    #         "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+    #     },
+    #     "exome": {
+    #         "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
+    #         "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
+    #         "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+    #     },
+    # },
+    # "RGP": {
+    #     "rgp": {
+    #         "talos_results": "gs://cpg-broad-rgp-test/reanalysis/2025-05-08_correct_clinvar/pheno_annotated_report.json",
+    #         "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
+    #     },
+    # },
 }
 
 
@@ -57,7 +77,7 @@ class CausativeVariant(BaseModel):
     gene: str
     variant_type: str
     variant_description: Optional[str] = None
-    talos_hit: Optional[ReportVariant] = None
+    talos_hit: Optional[models.ReportVariant] = None
     exomiser_hit: Optional[dict] = None
 
 
@@ -78,7 +98,7 @@ class Family(BaseModel):
     variant2: Optional[CausativeVariant] = None
 
     analysed_by_talos: bool = False
-    talos_results: list[ReportVariant] | None = Field(default_factory=list)
+    talos_results: list[models.ReportVariant] | None = Field(default_factory=list)
     _talos_phenotype_match_found: Optional[bool] = None
 
     solved_by_exomiser: bool = False
@@ -153,10 +173,15 @@ class Family(BaseModel):
 
     @property
     def talos_candidate_count(self):
-        """Return the number of talos candidates"""
+        """
+        Return the number of talos candidates.
+        The exact 'thing' counted here is the unique CHR-POS-REF-ALT Strings, as variants with annotations on multiple
+        genes are split into separate 'ReportVariant' objects. Counting each separately leads to count inflation.
+        """
         if not self.talos_results:
             return None
-        return len(self.talos_results)
+
+        return len({var.var_data.coordinates.string_format for var in self.talos_results})
 
     @property
     def talos_candidate_count_w_phe_match(self):
@@ -208,7 +233,7 @@ class Family(BaseModel):
             if self.variant2:
                 self.variant2.talos_hit = self.find_causative_variant_in_talos(self.variant2)
 
-    def find_causative_variant_in_talos(self, causative_variant: CausativeVariant) -> Optional[ReportVariant]:
+    def find_causative_variant_in_talos(self, causative_variant: CausativeVariant) -> Optional[models.ReportVariant]:
         """
         For a given causative variant, find a matching variant in the talos candidate list
         """
@@ -216,7 +241,7 @@ class Family(BaseModel):
             if r.var_data.coordinates.string_format == causative_variant.variant_id:
                 return r
 
-            if causative_variant.variant_type == "CNV_SV" and isinstance(r.var_data, StructuralVariant):
+            if causative_variant.variant_type == "CNV_SV" and isinstance(r.var_data, models.StructuralVariant):
                 # CNV_SV match based on gene symbol in the predicted_lof field
                 if causative_variant.gene in r.var_data.info["lof"].split(","):
                     return r
@@ -282,9 +307,12 @@ class Family(BaseModel):
 
     def summarise_catagory_counts(self):
         """
-            Summaries the number of candidates labeled with each category.
-            Returns a pair of Counter objects, one for all candidates and one for
-            only the candidates with a single category label
+        Summaries the number of candidates labeled with each category.
+        Returns a pair of Counter objects, one for all candidates and one for candidates with a single category label
+
+        There is a skip-included here to only count each unique variant once. This matches the behaviour in the above
+        talos_candidate_count method. Category annotations are applied at the variant level, not the sample/gene level,
+        so counting each variant instance uniquely leads to correct 'event' counts.
         """
 
         if not self.talos_results:
@@ -293,7 +321,12 @@ class Family(BaseModel):
         all_counts = collections.Counter()
         unique_counts = collections.Counter()
 
+        seen: set[str] = set()
         for r in self.talos_results:
+            var_string = r.var_data.coordinates.string_format
+            if var_string in seen:
+                continue
+            seen.add(var_string)
             all_counts.update(r.categories)
             if len(r.categories) == 1:
                 unique_counts.update(r.categories)
@@ -572,7 +605,7 @@ def cli_main():
         "--mosaic_in_scope", help="Consider mosaic variants as in scope", action="store_true", default=False
     )
     parser.add_argument("--process_full_trios_only", help="process only trios", action="store_true", default=False)
-    parser.add_argument("--summary_tsv", help="Output path for summary tsv", type=argparse.FileType("w"))
+    parser.add_argument("--summary_tsv", help="Output path for summary tsv", type=argparse.FileType("w"), default='summary.tsv')
 
     args, unknown = parser.parse_known_args()
 
@@ -615,7 +648,7 @@ def main(
         print(f"process_only_trios: {process_only_trios}")
         print(f"Variant types: {in_scope_variants}, mosaics: {in_scope_mosaics}, incomplete penetrance: {in_scope_incomplete_penetrance}, intergenic: {in_scope_intergenic}")
         talos_results_json = json.load(AnyPath(subcohort_dict["talos_results"]).open())
-        talos_results = ResultData.model_validate(talos_results_json)
+        talos_results = models.ResultData.model_validate(talos_results_json)
 
         sub_cohort_families = parse_truth_data(
             truth_tsv_path=subcohort_dict["truth_tsv_path"],
