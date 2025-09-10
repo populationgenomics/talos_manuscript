@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field, field_validator
 # Recommended: create a local virtual environment, clone Talos, "pip install ." in the root of the Talos repository,
 # All dependencies should then be satisfied to run this script
 from talos import models
+from talos.utils import read_json_from_path
 
 
 # Constants
@@ -43,29 +44,46 @@ COHORT_CONFIG = {
         "genome": {
             "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-08-08/full_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
-            "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+            # this exomiser data was generated on v14.0.0, data version 2402
+            # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+
+            # this exomiser data was generated on v14.1.0, data version 2502
+            "exomiser_results": "gs://cpg-acute-care-main/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/exomiser/14.1.0/2502/exomiser_variant_results.json",
         },
         "exome": {
             "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-08-08/full_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
-            "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+            # this exomiser data was generated on v14.0.0, data version 2402
+            # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+
+            # this exomiser data was generated on v14.1.0, data version 2502
+            "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
         },
     },
     # "acute-care-singletons": {
     #     "genome": {
     #         "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
     #         "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
-    #         "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+    #         # this exomiser data was generated on v14.0.0, data version 2402
+    #         # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+    #
+    #         # this exomiser data was generated on v14.1.0, data version 2502
+    #         "exomiser_results": "gs://cpg-acute-care-main/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/exomiser/14.1.0/2502/exomiser_variant_results.json",
     #     },
     #     "exome": {
     #         "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
     #         "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
-    #         "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+    #         # this exomiser data was generated on v14.0.0, data version 2402
+    #         # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+    #
+    #         # this exomiser data was generated on v14.1.0, data version 2502
+    #         "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
     #     },
     # },
     # "RGP": {
     #     "rgp": {
-    #         "talos_results": "gs://cpg-broad-rgp-test/reanalysis/2025-05-08_correct_clinvar/pheno_annotated_report.json",
+    #         "talos_results": "gs://cpg-broad-rgp-test/talos/2025-09-03/HpoFlagging/full_report.json",
+    #         # "talos_results": "gs://cpg-broad-rgp-test/reanalysis/2025-05-08_correct_clinvar/pheno_annotated_report.json",
     #         "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
     #     },
     # },
@@ -326,10 +344,12 @@ class Family(BaseModel):
             var_string = r.var_data.coordinates.string_format
             if var_string in seen:
                 continue
+
             seen.add(var_string)
-            all_counts.update(r.categories)
+
+            all_counts.update(set(r.categories.keys()))
             if len(r.categories) == 1:
-                unique_counts.update(r.categories)
+                unique_counts.update(set(r.categories.keys()))
 
         return all_counts, unique_counts
 
@@ -647,8 +667,7 @@ def main(
         print(f"Truth data: {subcohort_dict['truth_tsv_path']}")
         print(f"process_only_trios: {process_only_trios}")
         print(f"Variant types: {in_scope_variants}, mosaics: {in_scope_mosaics}, incomplete penetrance: {in_scope_incomplete_penetrance}, intergenic: {in_scope_intergenic}")
-        talos_results_json = json.load(AnyPath(subcohort_dict["talos_results"]).open())
-        talos_results = models.ResultData.model_validate(talos_results_json)
+        talos_results = read_json_from_path(subcohort_dict["talos_results"], return_model=models.ResultData)
 
         sub_cohort_families = parse_truth_data(
             truth_tsv_path=subcohort_dict["truth_tsv_path"],
