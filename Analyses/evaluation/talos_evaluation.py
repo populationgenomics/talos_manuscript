@@ -44,13 +44,19 @@ COHORT_CONFIG = {
         "genome": {
             "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-08-08/full_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
+            # this exomiser data was generated on v14.0.0, data version 2402
             # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+
+            # this exomiser data was generated on v14.1.0, data version 2502
             "exomiser_results": "gs://cpg-acute-care-main/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/exomiser/14.1.0/2502/exomiser_variant_results.json",
         },
         "exome": {
             "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-08-08/full_report.json",
             "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
+            # this exomiser data was generated on v14.0.0, data version 2402
             # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+
+            # this exomiser data was generated on v14.1.0, data version 2502
             "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
         },
     },
@@ -58,12 +64,20 @@ COHORT_CONFIG = {
     #     "genome": {
     #         "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
     #         "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
-    #         "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+    #         # this exomiser data was generated on v14.0.0, data version 2402
+    #         # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+    #
+    #         # this exomiser data was generated on v14.1.0, data version 2502
+    #         "exomiser_results": "gs://cpg-acute-care-main/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/exomiser/14.1.0/2502/exomiser_variant_results.json",
     #     },
     #     "exome": {
     #         "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
     #         "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
-    #         "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+    #         # this exomiser data was generated on v14.0.0, data version 2402
+    #         # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+    #
+    #         # this exomiser data was generated on v14.1.0, data version 2502
+    #         "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
     #     },
     # },
     # "RGP": {
