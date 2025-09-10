@@ -472,7 +472,7 @@ def mcnemar_exomiser_vs_talos(families, top_n=None, verbose=True):
     if verbose:
         label = "all" if top_n in (None, "all") else f"top-{top_n}"
         print(
-            f"{label}: relevant={total_rel}; "
+            f"{label}: relevant samples={total_rel}; "
             f"Talos TP={talos_tp} ({talos_tp/total_rel*100:.1f}%), "
             f"Exomiser TP={exomiser_tp} ({exomiser_tp/total_rel*100:.1f}%); "
             f"discordants b={b}, c={c}; McNemar test p={p_value:.4g}"
@@ -557,57 +557,12 @@ def generate_summary_stats(families):
         Pct of candidates with phenotype match that are causative: {solved_by_talos_w_phen_match / sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])  * 100:.1f}%
         """
 
-    # # Exomiser stats
-
-    # # whole collection of families where Exomiser ran, and was solved by manual analysis
-    # families_with_exomiser_results = [f for f in families if f.exomiser_results_exists and f.solved]
-    # # of those, families with only small variants - only these are in scope for exomiser analysis
-    # families_exomiser_snv_only = [f for f in families_with_exomiser_results if f.variant_types == {'SNV_INDEL'}]
-    # # the number of solved cases (by any means) with exomiser results
-    # total_solved_and_run_exomiser = len(families_exomiser_snv_only)
-
-    # # bail if exomiser results not provided
-    # if not total_solved_and_run_exomiser:
-    #     return summary_stats, ""
-
-    # # integer, number of families with only small variants and any exomiser results
-    # total_solved_and_run_exomiser_snv_only = len(families_exomiser_snv_only)
-    # # all families which were solved by exomiser
-    # solved_by_exomiser_fams = [f for f in families_exomiser_snv_only if f.solved_by_exomiser]
-    # # integer, the number of families in scope for, and solved by, exomiser
-    # total_solved_by_exomiser = len(solved_by_exomiser_fams)
-    # # exomiser solved, top 1
-    # solved_by_exomiser_top1 = len([f for f in solved_by_exomiser_fams if f.exomiser_rank == 1])
-    # # exomiser solved, top 5
-    # solved_by_exomiser_top5 = len([f for f in solved_by_exomiser_fams if f.exomiser_rank <= 5])
-    # # exomiser solved, top 10
-    # solved_by_exomiser_top10 = len([f for f in solved_by_exomiser_fams if f.exomiser_rank <= 10])
-    # # all family IDs of the in-scope exomiser solves
-    # solved_by_exomiser_set = {f.family_id for f in solved_by_exomiser_fams}
-    # # all family IDs of the SNV cases solved by Talos, having any exomiser results
-    # solved_by_talos_set_snv_only = {f.family_id for f in families_exomiser_snv_only if f.solved_by_talos}
-    # # families solved by both methods, SNV only
-    # solved_by_both_set_snv_only = len({f.family_id for f in families_exomiser_snv_only if f.solved_by_talos and f.solved_by_exomiser})
-
-    # # top number is families with a small-variant solve, where we have run exomiser, all other numbers relative to that
-    # exomiser_summary = f"""
-    #     Families solved and in scope for exomiser (SNV only): {total_solved_and_run_exomiser_snv_only}
-    #     Solved by exomiser: {total_solved_by_exomiser} ({total_solved_by_exomiser/total_solved_and_run_exomiser_snv_only*100:.1f}%)
-    #     Talos solved {len(solved_by_talos_set_snv_only)} of these ({len(solved_by_talos_set_snv_only)/total_solved_and_run_exomiser_snv_only*100:.1f}%)
-    #     Solved by both methods: {solved_by_both_set_snv_only} ({solved_by_both_set_snv_only/total_solved_and_run_exomiser_snv_only*100:.1f}%)
-    #     Solved by exomiser (top 1): {solved_by_exomiser_top1} ({solved_by_exomiser_top1/total_solved_and_run_exomiser*100:.1f}%)
-    #     Solved by exomiser (top 5): {solved_by_exomiser_top5} ({solved_by_exomiser_top5/total_solved_and_run_exomiser*100:.1f}%)
-    #     Solved by exomiser (top 10): {solved_by_exomiser_top10} ({solved_by_exomiser_top10/total_solved_and_run_exomiser*100:.1f}%)
-    #     Solved by exomiser and not talos: {len(solved_by_exomiser_set - solved_by_talos_set_snv_only)}: {", ".join(solved_by_exomiser_set - solved_by_talos_set_snv_only)}
-    #     Solved by talos and not exomiser: {len(solved_by_talos_set_snv_only - solved_by_exomiser_set)}: {", ".join(solved_by_talos_set_snv_only - solved_by_exomiser_set)}
-    # """
-    # return summary_stats, exomiser_summary
     return summary_stats
 
 
 def write_per_family_results(families, out_tsv):
     """
-    Write a sumamry tsv with one line per family with all features. Allows easy
+    Write a summary tsv with one line per family with all features. Allows easy
     filtering and sorting in a excel etc
     """
 
@@ -635,7 +590,6 @@ def write_per_family_results(families, out_tsv):
         "talos_candidate_gene_count_w_phe_match",
     ]
 
-    # with open(out_tsv, 'w') as output:
     writer = csv.DictWriter(out_tsv, fieldnames=fieldnames, delimiter="\t")
     writer.writeheader()
 
