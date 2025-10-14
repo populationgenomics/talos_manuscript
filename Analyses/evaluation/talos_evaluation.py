@@ -12,6 +12,18 @@ There is a change to the counting logic
     mean that all annotations are accurate (e.g. transcript consequences are not lost in the squashing)
 - To compensate, variant counts in this script are done on unique "CHR-POS-REF-ALT" signatures, instead of counting each
     unique event.
+
+To generate outputs used in the Talos manuscript, run like this:
+
+python talos_evaluation.py core   --cohort acute-care --process_full_trios_only --summary_tsv outputs/251009_acute-care_trio-only_talos_evaluation.tsv > outputs/251009_acute-care_trio-only_talos_evaluation.txt
+python talos_evaluation.py core   --cohort acute-care --summary_tsv outputs/251009_acute-care_all_talos_evaluation.tsv > outputs/251009_acute-care_all_talos_evaluation.txt
+
+python talos_evaluation.py core   --cohort RGP --process_full_trios_only --summary_tsv outputs/251009_RGP_trio-only_talos_evaluation.tsv > outputs/251009_RGP_trio-only_talos_evaluation.txt
+python talos_evaluation.py core   --cohort RGP --summary_tsv outputs/251009_RGP_all_talos_evaluation.tsv > outputs/251009_RGP_all_talos_evaluation.txt
+
+python talos_evaluation.py core   --cohort acute-care-singletons  --summary_tsv outputs/251009_acute-care-singletons_evaluation.tsv > outputs/251009_acute-care-singletons_evaluation.txt
+
+
 """
 
 import argparse
@@ -37,57 +49,53 @@ from talos.utils import read_json_from_path
 
 
 # Constants
-VARIANT_TYPES_BASIC = {"SNV_INDEL", "CNV_SV"}
+VARIANT_TYPES_BASIC = {"SNV_INDEL", "CNV_SV", "MITO", "MITO_SV"}
 VARIANT_TYPES_ALL = {"SNV_INDEL", "CNV_SV", "STR", "MITO", "MITO_SV"}
 
 COHORT_CONFIG = {
     "acute-care": {
         "genome": {
-            "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-08-08/full_report.json",
-            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
+            "talos_results": "gs://cpg-acute-care-main/talos/2025-10-07/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/251006_acute_care-genome-gold_std.tsv",
             # this exomiser data was generated on v14.0.0, data version 2402
             # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
-
             # this exomiser data was generated on v14.1.0, data version 2502
-            "exomiser_results": "gs://cpg-acute-care-main/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/exomiser/14.1.0/2502/exomiser_variant_results.json",
+            "exomiser_results": "gs://cpg-acute-care-main/exomiser/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/14.1.0/2508/exomiser_variant_results.json",
         },
         "exome": {
-            "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-08-08/full_report.json",
-            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
+            "talos_results": "gs://cpg-acute-care-main/exome/talos/2025-10-07/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/251006_acute_care-exome-gold_std.tsv",
             # this exomiser data was generated on v14.0.0, data version 2402
             # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
-
             # this exomiser data was generated on v14.1.0, data version 2502
             "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
         },
     },
-    # "acute-care-singletons": {
-    #     "genome": {
-    #         "talos_results": "gs://cpg-acute-care-main/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
-    #         "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240829_acute_care-genome-gold_std.tsv",
-    #         # this exomiser data was generated on v14.0.0, data version 2402
-    #         # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
-    #
-    #         # this exomiser data was generated on v14.1.0, data version 2502
-    #         "exomiser_results": "gs://cpg-acute-care-main/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/exomiser/14.1.0/2502/exomiser_variant_results.json",
-    #     },
-    #     "exome": {
-    #         "talos_results": "gs://cpg-acute-care-main/exome/reanalysis/2025-04-03_singleton/pheno_annotated_report.json",
-    #         "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/240822_acute_care-exome-gold_std.tsv",
-    #         # this exomiser data was generated on v14.0.0, data version 2402
-    #         # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
-    #
-    #         # this exomiser data was generated on v14.1.0, data version 2502
-    #         "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
-    #     },
-    # },
-    # "RGP": {
-    #     "rgp": {
-    #         "talos_results": "gs://cpg-broad-rgp-test/talos/2025-09-03/HpoFlagging/full_report.json",
-    #         # "talos_results": "gs://cpg-broad-rgp-test/reanalysis/2025-05-08_correct_clinvar/pheno_annotated_report.json",
-    #         "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
-    #     },
-    # },
+    "acute-care-singletons": {
+        "genome": {
+            "talos_results": "gs://cpg-acute-care-main/talos/2025-10-07_singletons/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/251006_acute_care-genome-gold_std.tsv",
+            # this exomiser data was generated on v14.0.0, data version 2402
+            # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+            # this exomiser data was generated on v14.1.0, data version 2502
+            "exomiser_results": "gs://cpg-acute-care-main/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/exomiser/14.1.0/2502/exomiser_variant_results.json",
+        },
+        "exome": {
+            "talos_results": "gs://cpg-acute-care-main/exome/talos/2025-10-07_singletons/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/251006_acute_care-exome-gold_std.tsv",
+            # this exomiser data was generated on v14.0.0, data version 2402
+            # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+            # this exomiser data was generated on v14.1.0, data version 2502
+            "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
+        },
+    },
+    "RGP": {
+        "rgp": {
+            "talos_results": "gs://cpg-broad-rgp-test/talos/2025-10-07/HpoFlagging/full_report.json",
+            # "talos_results": "gs://cpg-broad-rgp-test/reanalysis/2025-05-08_correct_clinvar/pheno_annotated_report.json",
+            "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
+        },
+    },
 }
 
 
@@ -126,6 +134,7 @@ class Family(BaseModel):
     exomiser_results_exists: bool = False
 
     in_scope_variant_types: set = VARIANT_TYPES_BASIC
+    in_scope_genotype_errors: bool = False
     in_scope_mosaics: bool = False
     in_scope_incomplete_penetrance: bool = False
     in_scope_intergenic: bool = False
@@ -153,6 +162,8 @@ class Family(BaseModel):
         if not self.solved:
             return False
         if self.mosaic and not self.in_scope_mosaics:
+            return False
+        if self.genotyping_error and not self.in_scope_genotype_errors:
             return False
         if self.incomplete_penetrance and not self.in_scope_incomplete_penetrance:
             return False
@@ -209,9 +220,7 @@ class Family(BaseModel):
         if not self.talos_results:
             return None
 
-        return len(
-            [r for r in self.talos_results if r.phenotype_labels or r.panels.forced or r.panels.matched]
-        )
+        return len([r for r in self.talos_results if r.phenotype_labels or r.panels.forced or r.panels.matched])
 
     @property
     def talos_candidate_gene_count(self):
@@ -227,13 +236,7 @@ class Family(BaseModel):
         if not self.talos_results:
             return None
         return len(
-            set(
-                [
-                    r.gene
-                    for r in self.talos_results
-                    if r.phenotype_labels or r.panels.forced or r.panels.matched
-                ]
-            )
+            set([r.gene for r in self.talos_results if r.phenotype_labels or r.panels.forced or r.panels.matched])
         )
 
     @property
@@ -354,11 +357,13 @@ class Family(BaseModel):
 
         return all_counts, unique_counts
 
+
 def parse_truth_data(
     truth_tsv_path: str,
     process_only_trios: bool,
     subcohort_label: str,
     in_scope_variant_types: set,
+    in_scope_genotype_errors: bool,
     in_scope_mosaics: bool,
     in_scope_incomplete_penetrance: bool,
     in_scope_intergenic: bool,
@@ -392,6 +397,7 @@ def parse_truth_data(
         family = Family(**fam, variant1=v1, variant2=v2, subcohort=subcohort_label)
 
         family.in_scope_variant_types = in_scope_variant_types
+        family.in_scope_genotype_errors = in_scope_genotype_errors
         family.in_scope_mosaics = in_scope_mosaics
         family.in_scope_incomplete_penetrance = in_scope_incomplete_penetrance
         family.in_scope_intergenic = in_scope_intergenic
@@ -403,6 +409,7 @@ def parse_truth_data(
         families.append(family)
 
     return families
+
 
 def mcnemar_exomiser_vs_talos(families, top_n=None, verbose=True):
     """
@@ -423,15 +430,22 @@ def mcnemar_exomiser_vs_talos(families, top_n=None, verbose=True):
             d = neither
     """
     # Eligible: solved by manual truth, Exomiser results exist, SNV/indel diagnoses
-    relevant = [
-        f for f in families
-        if f.solved and f.exomiser_results_exists and f.variant_types == {"SNV_INDEL"}
-    ]
+    relevant = [f for f in families if f.solved and f.exomiser_results_exists and f.variant_types == {"SNV_INDEL"}]
 
     if not relevant:
         if verbose:
-            print("McNemar Talos vs Exomiser: no eligible families (need solved SNV/indel cases with Exomiser results).")
-        return {"a": 0, "b": 0, "c": 0, "d": 0, "p_value": 1.0, "talos_only_ids": [], "exomiser_only_ids": []}
+            print(
+                "McNemar Talos vs Exomiser: no eligible families (need solved SNV/indel cases with Exomiser results)."
+            )
+        return {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "p_value": 1.0,
+            "talos_only_ids": [],
+            "exomiser_only_ids": [],
+        }
 
     a = b = c = d = 0
     talos_only_ids = []
@@ -473,12 +487,10 @@ def mcnemar_exomiser_vs_talos(families, top_n=None, verbose=True):
         label = "all" if top_n in (None, "all") else f"top-{top_n}"
         print(
             f"{label}: relevant samples={total_rel}; "
-            f"Talos TP={talos_tp} ({talos_tp/total_rel*100:.1f}%), "
-            f"Exomiser TP={exomiser_tp} ({exomiser_tp/total_rel*100:.1f}%); "
+            f"Talos TP={talos_tp} ({talos_tp / total_rel * 100:.1f}%), "
+            f"Exomiser TP={exomiser_tp} ({exomiser_tp / total_rel * 100:.1f}%); "
             f"discordants b={b}, c={c}; McNemar test p={p_value:.4g}"
         )
-        # print(f"  Talos-only family_ids ({len(talos_only_ids)}): {', '.join(talos_only_ids)}")
-        # print(f"  Exomiser-only family_ids ({len(exomiser_only_ids)}): {', '.join(exomiser_only_ids)}")
 
     return {
         "a": a,
@@ -510,7 +522,9 @@ def generate_summary_stats(families):
     pct_talos_solved_all = solved_by_talos / solved_families_analysed_by_talos * 100
     pct_talos_solved_in_scope = solved_by_talos_in_scope / solved_in_scope_families_analysed_by_talos * 100
     pct_talos_solved_w_phen_match = solved_by_talos_w_phen_match / solved_families_analysed_by_talos * 100
-    pct_talos_solved_w_phen_match_in_scope = solved_by_talos_w_phen_match_in_scope / solved_in_scope_families_analysed_by_talos * 100
+    pct_talos_solved_w_phen_match_in_scope = (
+        solved_by_talos_w_phen_match_in_scope / solved_in_scope_families_analysed_by_talos * 100
+    )
 
     candidate_counts = collections.Counter()
     unique_candidate_counts = collections.Counter()
@@ -521,14 +535,14 @@ def generate_summary_stats(families):
             candidate_counts += fam_candidate_counts
             unique_candidate_counts += fam_unique_candidate_counts
 
-    candidate_counts_string = '\n'.join([f"\t\t{k}: {v}" for k, v in candidate_counts.most_common()])
-    unique_candidate_counts_string = '\n'.join([f"\t\t{k}: {v}" for k, v in unique_candidate_counts.most_common()])
+    candidate_counts_string = "\n".join([f"\t\t{k}: {v}" for k, v in candidate_counts.most_common()])
+    unique_candidate_counts_string = "\n".join([f"\t\t{k}: {v}" for k, v in unique_candidate_counts.most_common()])
 
     summary_stats = f"""
         Total families: {total_families}
-        Families considered solved: {solved_families} ({solved_families/total_families*100:.1f}%)
-        Families considered solved and in scope: {solved_in_scope_families} ({solved_in_scope_families/solved_families*100:.1f}%)
-        Families considered solved and in scope, analysed by Talos: {solved_in_scope_families_analysed_by_talos} ({solved_in_scope_families_analysed_by_talos/solved_families_analysed_by_talos*100:.1f}%)
+        Families considered solved: {solved_families} ({solved_families / total_families * 100:.1f}%)
+        Families considered solved and in scope: {solved_in_scope_families} ({solved_in_scope_families / solved_families * 100:.1f}%)
+        Families considered solved and in scope, analysed by Talos: {solved_in_scope_families_analysed_by_talos} ({solved_in_scope_families_analysed_by_talos / solved_families_analysed_by_talos * 100:.1f}%)
 
         Solved by talos: {solved_by_talos} ( {pct_talos_solved_all:.1f}% of all solved)
         Solved by talos with phenotype match: {solved_by_talos_w_phen_match} ( {pct_talos_solved_w_phen_match:.1f}% of all solved)
@@ -553,8 +567,8 @@ def generate_summary_stats(families):
         Count of talos candidates per category (candidate with only a single category):
     {unique_candidate_counts_string}
 
-        Pct of candidates that are causative: {solved_by_talos / sum([f.talos_candidate_count for f in families if f.talos_results])  * 100:.1f}%
-        Pct of candidates with phenotype match that are causative: {solved_by_talos_w_phen_match / sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])  * 100:.1f}%
+        Pct of candidates that are causative: {solved_by_talos / sum([f.talos_candidate_count for f in families if f.talos_results]) * 100:.1f}%
+        Pct of candidates with phenotype match that are causative: {solved_by_talos_w_phen_match / sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) * 100:.1f}%
         """
 
     return summary_stats
@@ -573,6 +587,7 @@ def write_per_family_results(families, out_tsv):
         "trio",
         "solved",
         "in_scope",
+        "genotyping_error",
         "mosaic",
         "incomplete_penetrance",
         "intergenic",
@@ -602,6 +617,7 @@ def write_per_family_results(families, out_tsv):
                 "trio": family.trio,
                 "solved": family.solved,
                 "in_scope": family.solved_in_scope,
+                "genotyping_error": family.genotyping_error,
                 "mosaic": family.mosaic,
                 "incomplete_penetrance": family.incomplete_penetrance,
                 "intergenic": family.intergenic,
@@ -632,8 +648,8 @@ def write_per_family_results(families, out_tsv):
                     [
                         x
                         for x in [
-                            family.variant1.variant_description if family.variant1 else None,
-                            family.variant2.variant_description if family.variant2 else None,
+                            (family.variant1.variant_description if family.variant1 else None),
+                            (family.variant2.variant_description if family.variant2 else None),
                         ]
                         if x
                     ]
@@ -651,23 +667,53 @@ def write_per_family_results(families, out_tsv):
 def cli_main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "in_scope_variants", help="Varint types to include in the evaluation", choices=["all", "core"], default="core"
+        "in_scope_variants",
+        help="Varint types to include in the evaluation",
+        choices=["all", "core"],
+        default="core",
     )
-    parser.add_argument("--cohort", help="Cohort to evaluate", choices=COHORT_CONFIG.keys(), default="acute-care")
     parser.add_argument(
-        "--incomplete_penetrance",
-        help="Consider incomplete penetrance variants as in scope",
+        "--cohort",
+        help="Cohort to evaluate",
+        choices=COHORT_CONFIG.keys(),
+        default="acute-care",
+    )
+    parser.add_argument(
+        "--exclude_incomplete_penetrance",
+        help="Exclude incomplete penetrance variants from scope",
         action="store_true",
         default=False,
     )
     parser.add_argument(
-        "--intergenic_in_scope", help="Consider intergenic variants as in scope", action="store_true", default=False
+        "--exclude_intergenic",
+        help="Exclude intergenic variants from scope",
+        action="store_true",
+        default=False,
     )
     parser.add_argument(
-        "--mosaic_in_scope", help="Consider mosaic variants as in scope", action="store_true", default=False
+        "--genotype_errors_in_scope",
+        help="Include variants that were not correctly called in the VCF from scope",
+        action="store_true",
+        default=False,
     )
-    parser.add_argument("--process_full_trios_only", help="process only trios", action="store_true", default=False)
-    parser.add_argument("--summary_tsv", help="Output path for summary tsv", type=argparse.FileType("w"), default='summary.tsv')
+    parser.add_argument(
+        "--exclude_mosaic",
+        help="Exclude mosaic variants from scope",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--process_full_trios_only",
+        help="process only trios",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--summary_tsv",
+        help="Output path for summary tsv",
+        type=argparse.FileType("w"),
+        default="summary.tsv",
+    )
 
     args, unknown = parser.parse_known_args()
 
@@ -684,9 +730,10 @@ def cli_main():
         in_scope_variants=in_scope_variants,
         sub_cohorts_config=sub_cohorts_config,
         process_only_trios=args.process_full_trios_only,
-        in_scope_incomplete_penetrance=args.incomplete_penetrance,
-        in_scope_intergenic=args.intergenic_in_scope,
-        in_scope_mosaics=args.mosaic_in_scope,
+        in_scope_incomplete_penetrance=not args.exclude_incomplete_penetrance,
+        in_scope_intergenic=not args.exclude_intergenic,
+        in_scope_genotype_errors=args.genotype_errors_in_scope,
+        in_scope_mosaics=not args.exclude_mosaic,
         summary_tsv=args.summary_tsv,
     )
 
@@ -697,6 +744,7 @@ def main(
     process_only_trios: bool,
     in_scope_incomplete_penetrance: bool,
     in_scope_intergenic: bool,
+    in_scope_genotype_errors: bool,
     in_scope_mosaics: bool,
     summary_tsv,
 ):
@@ -708,7 +756,9 @@ def main(
         print(f"Processing subcohort {subcohort_label} from {subcohort_dict['talos_results']}")
         print(f"Truth data: {subcohort_dict['truth_tsv_path']}")
         print(f"process_only_trios: {process_only_trios}")
-        print(f"Variant types: {in_scope_variants}, mosaics: {in_scope_mosaics}, incomplete penetrance: {in_scope_incomplete_penetrance}, intergenic: {in_scope_intergenic}")
+        print(
+            f"Variant types: {in_scope_variants}, mosaics: {in_scope_mosaics}, incomplete penetrance: {in_scope_incomplete_penetrance}, intergenic: {in_scope_intergenic}, genotype errors: {in_scope_genotype_errors} \n"
+        )
         talos_results = read_json_from_path(subcohort_dict["talos_results"], return_model=models.ResultData)
 
         sub_cohort_families = parse_truth_data(
@@ -716,6 +766,7 @@ def main(
             process_only_trios=process_only_trios,
             subcohort_label=subcohort_label,
             in_scope_variant_types=in_scope_variants,
+            in_scope_genotype_errors=in_scope_genotype_errors,
             in_scope_mosaics=in_scope_mosaics,
             in_scope_incomplete_penetrance=in_scope_incomplete_penetrance,
             in_scope_intergenic=in_scope_intergenic,
