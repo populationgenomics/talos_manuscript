@@ -15,13 +15,15 @@ There is a change to the counting logic
 
 To generate outputs used in the Talos manuscript, run like this:
 
-python talos_evaluation.py core   --cohort acute-care --process_full_trios_only --summary_tsv outputs/251009_acute-care_trio-only_talos_evaluation.tsv > outputs/251009_acute-care_trio-only_talos_evaluation.txt
-python talos_evaluation.py core   --cohort acute-care --summary_tsv outputs/251009_acute-care_all_talos_evaluation.tsv > outputs/251009_acute-care_all_talos_evaluation.txt
+python talos_evaluation.py core   --cohort acute-care --process_full_trios_only --summary_tsv outputs/251127_acute-care_trio-only_talos_evaluation.tsv > outputs/251127_acute-care_trio-only_talos_evaluation.txt
+python talos_evaluation.py core   --cohort acute-care --summary_tsv outputs/251127_acute-care_all_talos_evaluation.tsv > outputs/251127_acute-care_all_talos_evaluation.txt
 
-python talos_evaluation.py core   --cohort RGP --process_full_trios_only --summary_tsv outputs/251009_RGP_trio-only_talos_evaluation.tsv > outputs/251009_RGP_trio-only_talos_evaluation.txt
-python talos_evaluation.py core   --cohort RGP --summary_tsv outputs/251009_RGP_all_talos_evaluation.tsv > outputs/251009_RGP_all_talos_evaluation.txt
+python talos_evaluation.py core   --cohort RGP --process_full_trios_only --summary_tsv outputs/251127_RGP_trio-only_talos_evaluation.tsv > outputs/251127_RGP_trio-only_talos_evaluation.txt
+python talos_evaluation.py core   --cohort RGP --summary_tsv outputs/251127_RGP_all_talos_evaluation.tsv > outputs/251127_RGP_all_talos_evaluation.txt
 
-python talos_evaluation.py core   --cohort acute-care-singletons  --summary_tsv outputs/251009_acute-care-singletons_evaluation.tsv > outputs/251009_acute-care-singletons_evaluation.txt
+python talos_evaluation.py core   --cohort RGP-singletons --summary_tsv outputs/251127_RGP-singletons_evaluation.tsv > outputs/251127_RGP-singletons_evaluation.txt
+
+python talos_evaluation.py core   --cohort acute-care-singletons  --summary_tsv outputs/251127_acute-care-singletons_evaluation.tsv > outputs/251127_acute-care-singletons_evaluation.txt
 
 
 """
@@ -93,7 +95,15 @@ COHORT_CONFIG = {
         "rgp": {
             "talos_results": "gs://cpg-broad-rgp-test/talos/2025-10-07/HpoFlagging/full_report.json",
             # "talos_results": "gs://cpg-broad-rgp-test/reanalysis/2025-05-08_correct_clinvar/pheno_annotated_report.json",
-            "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
+            "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/251127_RGP_Data_For_Talos_Paper.tsv",
+            # "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
+        },
+    },
+    "RGP-singletons": {
+        "rgp": {
+            "talos_results": "gs://cpg-broad-rgp-test/talos/2025-10-07_singletons/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/251127_RGP_Data_For_Talos_Paper.tsv",
+            # "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
         },
     },
 }
@@ -139,7 +149,7 @@ class Family(BaseModel):
     in_scope_incomplete_penetrance: bool = False
     in_scope_intergenic: bool = False
 
-    @field_validator("mosaic", "incomplete_penetrance", mode="before")
+    @field_validator("mosaic", "incomplete_penetrance", "genotyping_error", mode="before")
     def empty_str_to_false(cls, v: str) -> str | bool:
         if not v:
             return False
@@ -555,7 +565,9 @@ def generate_summary_stats(families):
         NOT solved by talos - OUT of scope: {len([f for f in families if f.solved and not f.solved_by_talos and not f.solved_in_scope])}
 
         Average number of talos candidates per family: {sum([f.talos_candidate_count for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+        Max number of talos candidates per family: {max([f.talos_candidate_count for f in families if f.talos_results])}
         Average number of talos candidates per family with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+        Max number of talos candidates per family with phenotype match: {max([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])}
         Average number of talos candidate genes per family: {sum([f.talos_candidate_gene_count for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
         Average number of talos candidate genes per family with phenotype match: {sum([f.talos_candidate_gene_count_w_phe_match for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
 
@@ -792,8 +804,8 @@ def main(
 
             family.analysed_by_talos = True
 
-            # Add talos results to family
-            family.talos_results = talos_results.results[use_id].variants
+            # Add talos results to family filtered to only those found in current run (excludes historical only candidates)
+            family.talos_results = [r for r in talos_results.results[use_id].variants if r.found_in_current_run]
             family.find_causative_variants_in_talos_results()
 
             if exomiser_results:
