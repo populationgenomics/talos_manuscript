@@ -15,15 +15,15 @@ There is a change to the counting logic
 
 To generate outputs used in the Talos manuscript, run like this:
 
-python talos_evaluation.py core   --cohort acute-care --process_full_trios_only --summary_tsv outputs/251127_acute-care_trio-only_talos_evaluation.tsv > outputs/251127_acute-care_trio-only_talos_evaluation.txt
-python talos_evaluation.py core   --cohort acute-care --summary_tsv outputs/251127_acute-care_all_talos_evaluation.tsv > outputs/251127_acute-care_all_talos_evaluation.txt
+python talos_evaluation.py core   --cohort acute-care --process_full_trios_only --summary_tsv outputs/251208_acute-care_trio-only_talos_evaluation.tsv > outputs/251208_acute-care_trio-only_talos_evaluation.txt
+python talos_evaluation.py core   --cohort acute-care --summary_tsv outputs/251208_acute-care_all_talos_evaluation.tsv > outputs/251208_acute-care_all_talos_evaluation.txt
 
-python talos_evaluation.py core   --cohort RGP --process_full_trios_only --summary_tsv outputs/251127_RGP_trio-only_talos_evaluation.tsv > outputs/251127_RGP_trio-only_talos_evaluation.txt
-python talos_evaluation.py core   --cohort RGP --summary_tsv outputs/251127_RGP_all_talos_evaluation.tsv > outputs/251127_RGP_all_talos_evaluation.txt
+python talos_evaluation.py core   --cohort RGP --process_full_trios_only --summary_tsv outputs/251208_RGP_trio-only_talos_evaluation.tsv > outputs/251208_RGP_trio-only_talos_evaluation.txt
+python talos_evaluation.py core   --cohort RGP --summary_tsv outputs/251208_RGP_all_talos_evaluation.tsv > outputs/251208_RGP_all_talos_evaluation.txt
 
-python talos_evaluation.py core   --cohort RGP-singletons --summary_tsv outputs/251127_RGP-singletons_evaluation.tsv > outputs/251127_RGP-singletons_evaluation.txt
+python talos_evaluation.py core   --cohort RGP-singletons --summary_tsv outputs/251208_RGP-singletons_evaluation.tsv > outputs/251208_RGP-singletons_evaluation.txt
 
-python talos_evaluation.py core   --cohort acute-care-singletons  --summary_tsv outputs/251127_acute-care-singletons_evaluation.tsv > outputs/251127_acute-care-singletons_evaluation.txt
+python talos_evaluation.py core   --cohort acute-care-singletons  --summary_tsv outputs/251208_acute-care-singletons_evaluation.tsv > outputs/251208_acute-care-singletons_evaluation.txt
 
 
 """
@@ -93,7 +93,7 @@ COHORT_CONFIG = {
     },
     "RGP": {
         "rgp": {
-            "talos_results": "gs://cpg-broad-rgp-test/talos/2025-10-07/HpoFlagging/full_report.json",
+            "talos_results": "gs://cpg-broad-rgp-test/talos/2025-11-28/HpoFlagging/full_report.json",
             # "talos_results": "gs://cpg-broad-rgp-test/reanalysis/2025-05-08_correct_clinvar/pheno_annotated_report.json",
             "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/251127_RGP_Data_For_Talos_Paper.tsv",
             # "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
@@ -101,13 +101,12 @@ COHORT_CONFIG = {
     },
     "RGP-singletons": {
         "rgp": {
-            "talos_results": "gs://cpg-broad-rgp-test/talos/2025-10-07_singletons/HpoFlagging/full_report.json",
+            "talos_results": "gs://cpg-broad-rgp-test/talos/2025-11-28_singletons/HpoFlagging/full_report.json",
             "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/251127_RGP_Data_For_Talos_Paper.tsv",
             # "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
         },
     },
 }
-
 
 class CausativeVariant(BaseModel):
     variant_id: str
