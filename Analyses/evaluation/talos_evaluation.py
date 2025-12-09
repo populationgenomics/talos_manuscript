@@ -1,0 +1,830 @@
+#! /usr/bin/env python3
+
+"""
+Script to evaluate the performance of Talos and Exomiser against a "Gold Standard" truth set.
+
+There is a change to the counting logic
+- Talos initially records each Variant~Gene combination and uses that when determining inheritance (each gene ~its MOI)
+- The final step was to condense these results back into a single 'event' per variant, potentially combining across
+    multiple genes
+- Talos was recently changed to stop doing this, and retains each variant~gene event separately
+- This means that the report can contain the same report repeated for each Gene it has been annotated with, but does
+    mean that all annotations are accurate (e.g. transcript consequences are not lost in the squashing)
+- To compensate, variant counts in this script are done on unique "CHR-POS-REF-ALT" signatures, instead of counting each
+    unique event.
+
+To generate outputs used in the Talos manuscript, run like this:
+
+python talos_evaluation.py core   --cohort acute-care --process_full_trios_only --summary_tsv outputs/251208_acute-care_trio-only_talos_evaluation.tsv > outputs/251208_acute-care_trio-only_talos_evaluation.txt
+python talos_evaluation.py core   --cohort acute-care --summary_tsv outputs/251208_acute-care_all_talos_evaluation.tsv > outputs/251208_acute-care_all_talos_evaluation.txt
+
+python talos_evaluation.py core   --cohort RGP --process_full_trios_only --summary_tsv outputs/251208_RGP_trio-only_talos_evaluation.tsv > outputs/251208_RGP_trio-only_talos_evaluation.txt
+python talos_evaluation.py core   --cohort RGP --summary_tsv outputs/251208_RGP_all_talos_evaluation.tsv > outputs/251208_RGP_all_talos_evaluation.txt
+
+python talos_evaluation.py core   --cohort RGP-singletons --summary_tsv outputs/251208_RGP-singletons_evaluation.tsv > outputs/251208_RGP-singletons_evaluation.txt
+
+python talos_evaluation.py core   --cohort acute-care-singletons  --summary_tsv outputs/251208_acute-care-singletons_evaluation.tsv > outputs/251208_acute-care-singletons_evaluation.txt
+
+
+"""
+
+import argparse
+import csv
+import collections
+import json
+from typing import Optional
+
+from cloudpathlib import AnyPath
+from pydantic import BaseModel, Field, field_validator
+from scipy.stats import binomtest
+
+
+# n.b. to run this you will need to install Talos
+# the only part of Talos which is relevant to this script is the models, but these models deviate from the committed
+# extract here over time, and Talos contains liftover methods, so this script should continue to be viable even after
+# substantial diversion.
+# The Talos repository is available at github.com/populationgenomics/talos
+# Recommended: create a local virtual environment, clone Talos, "pip install ." in the root of the Talos repository,
+# All dependencies should then be satisfied to run this script
+from talos import models
+from talos.utils import read_json_from_path
+
+
+# Constants
+VARIANT_TYPES_BASIC = {"SNV_INDEL", "CNV_SV", "MITO", "MITO_SV"}
+VARIANT_TYPES_ALL = {"SNV_INDEL", "CNV_SV", "STR", "MITO", "MITO_SV"}
+
+COHORT_CONFIG = {
+    "acute-care": {
+        "genome": {
+            "talos_results": "gs://cpg-acute-care-main/talos/2025-10-07/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/251006_acute_care-genome-gold_std.tsv",
+            # this exomiser data was generated on v14.0.0, data version 2402
+            # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+            # this exomiser data was generated on v14.1.0, data version 2502
+            "exomiser_results": "gs://cpg-acute-care-main/exomiser/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/14.1.0/2508/exomiser_variant_results.json",
+        },
+        "exome": {
+            "talos_results": "gs://cpg-acute-care-main/exome/talos/2025-10-07/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/251006_acute_care-exome-gold_std.tsv",
+            # this exomiser data was generated on v14.0.0, data version 2402
+            # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+            # this exomiser data was generated on v14.1.0, data version 2502
+            "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
+        },
+    },
+    "acute-care-singletons": {
+        "genome": {
+            "talos_results": "gs://cpg-acute-care-main/talos/2025-10-07_singletons/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/251006_acute_care-genome-gold_std.tsv",
+            # this exomiser data was generated on v14.0.0, data version 2402
+            # "exomiser_results": "gs://cpg-acute-care-main-analysis/39c12fb9076d3e45a7b6a9c09aed7512dc2491_2405/exomiser_variant_results.json",
+            # this exomiser data was generated on v14.1.0, data version 2502
+            "exomiser_results": "gs://cpg-acute-care-main/f5e5daa7e910bd09d916a63a9a04639da95b6f_842/exomiser/14.1.0/2502/exomiser_variant_results.json",
+        },
+        "exome": {
+            "talos_results": "gs://cpg-acute-care-main/exome/talos/2025-10-07_singletons/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-acute-care-main-upload/talos_truth_data/251006_acute_care-exome-gold_std.tsv",
+            # this exomiser data was generated on v14.0.0, data version 2402
+            # "exomiser_results": "gs://cpg-acute-care-main-analysis/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser_variant_results.json",
+            # this exomiser data was generated on v14.1.0, data version 2502
+            "exomiser_results": "gs://cpg-acute-care-main/exome/d671000b77331661dd38ec58250671b6807863_342/exomiser/14.1.0/2502/exomiser_variant_results.json",
+        },
+    },
+    "RGP": {
+        "rgp": {
+            "talos_results": "gs://cpg-broad-rgp-test/talos/2025-11-28/HpoFlagging/full_report.json",
+            # "talos_results": "gs://cpg-broad-rgp-test/reanalysis/2025-05-08_correct_clinvar/pheno_annotated_report.json",
+            "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/251127_RGP_Data_For_Talos_Paper.tsv",
+            # "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
+        },
+    },
+    "RGP-singletons": {
+        "rgp": {
+            "talos_results": "gs://cpg-broad-rgp-test/talos/2025-11-28_singletons/HpoFlagging/full_report.json",
+            "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/251127_RGP_Data_For_Talos_Paper.tsv",
+            # "truth_tsv_path": "gs://cpg-broad-rgp-main-upload/talos_truth_data/241213_RGP_Data_For_Talos_Paper.tsv",
+        },
+    },
+}
+
+class CausativeVariant(BaseModel):
+    variant_id: str
+    gene: str
+    variant_type: str
+    variant_description: Optional[str] = None
+    talos_hit: Optional[models.ReportVariant] = None
+    exomiser_hit: Optional[dict] = None
+
+
+class Family(BaseModel):
+    family_id: str
+    individual_id: str
+    sample_id: str
+    external_id: str
+    subcohort: str = ""
+    trio: bool
+    solved: bool
+    causative_gene: Optional[str] = ""
+    mosaic: Optional[bool] = False
+    incomplete_penetrance: Optional[bool] = False
+    intergenic: bool = False
+    genotyping_error: bool = False
+    variant1: Optional[CausativeVariant] = None
+    variant2: Optional[CausativeVariant] = None
+
+    analysed_by_talos: bool = False
+    talos_results: list[models.ReportVariant] | None = Field(default_factory=list)
+    _talos_phenotype_match_found: Optional[bool] = None
+
+    solved_by_exomiser: bool = False
+    exomiser_rank: Optional[int] = None
+    exomiser_results: dict = {}
+    exomiser_results_exists: bool = False
+
+    in_scope_variant_types: set = VARIANT_TYPES_BASIC
+    in_scope_genotype_errors: bool = False
+    in_scope_mosaics: bool = False
+    in_scope_incomplete_penetrance: bool = False
+    in_scope_intergenic: bool = False
+
+    @field_validator("mosaic", "incomplete_penetrance", "genotyping_error", mode="before")
+    def empty_str_to_false(cls, v: str) -> str | bool:
+        if not v:
+            return False
+        return v
+
+    @property
+    def solved_by_talos(self):
+        """Has this family been solved by talos?"""
+        if not self.solved:
+            return None
+        if self.variant1 and not self.variant1.talos_hit:
+            return False
+        if self.variant2 and not self.variant2.talos_hit:
+            return False
+        return True
+
+    @property
+    def solved_in_scope(self):
+        """Is this family considered solved AND should it be considered in scope?"""
+        if not self.solved:
+            return False
+        if self.mosaic and not self.in_scope_mosaics:
+            return False
+        if self.genotyping_error and not self.in_scope_genotype_errors:
+            return False
+        if self.incomplete_penetrance and not self.in_scope_incomplete_penetrance:
+            return False
+        if self.intergenic and not self.in_scope_intergenic:
+            return False
+        if self.has_out_of_scope_variant_type:
+            return False
+        return True
+
+    @property
+    def has_out_of_scope_variant_type(self):
+        """Does this family have variants tyoes that are out of scope?"""
+        if self.variant1 and self.variant1.variant_type not in self.in_scope_variant_types:
+            return True
+        if self.variant2 and self.variant2.variant_type not in self.in_scope_variant_types:
+            return True
+        return False
+
+    @property
+    def solved_by_talos_and_in_scope(self):
+        """Is this family solved by talos and in scope"""
+        return self.solved_by_talos and self.solved_in_scope
+
+    @property
+    def talos_phenotype_match_found(self):
+        """Return a list of talos results that are in scope"""
+        if self._talos_phenotype_match_found is not None:
+            return self._talos_phenotype_match_found
+
+        if self.variant1 and (talos_hit := self.variant1.talos_hit):
+            if talos_hit.phenotype_labels or talos_hit.panels.forced or talos_hit.panels.matched:
+                self._talos_phenotype_match_found = True
+            else:
+                self._talos_phenotype_match_found = False
+
+        return self._talos_phenotype_match_found
+
+    @property
+    def talos_candidate_count(self):
+        """
+        Return the number of talos candidates.
+        The exact 'thing' counted here is the unique CHR-POS-REF-ALT Strings, as variants with annotations on multiple
+        genes are split into separate 'ReportVariant' objects. Counting each separately leads to count inflation.
+        """
+        if not self.talos_results:
+            return None
+
+        return len({var.var_data.coordinates.string_format for var in self.talos_results})
+
+    @property
+    def talos_candidate_count_w_phe_match(self):
+        """Return the number of talos candidates with a phenotype match"""
+
+        if not self.talos_results:
+            return None
+
+        return len([r for r in self.talos_results if r.phenotype_labels or r.panels.forced or r.panels.matched])
+
+    @property
+    def talos_candidate_gene_count(self):
+        """Return the number of talos candidate GENES"""
+        if not self.talos_results:
+            return None
+
+        return len(set([r.gene for r in self.talos_results]))
+
+    @property
+    def talos_candidate_gene_count_w_phe_match(self):
+        """Return the number of talos candidate GENES with a phenotype match"""
+        if not self.talos_results:
+            return None
+        return len(
+            set([r.gene for r in self.talos_results if r.phenotype_labels or r.panels.forced or r.panels.matched])
+        )
+
+    @property
+    def variant_types(self):
+        """Return a set of variant types that are causative in this family"""
+        return {x.variant_type for x in [self.variant1, self.variant2] if x and x.variant_type}
+
+    def find_causative_variants_in_talos_results(self):
+        """For each causative variant, look for a matching variant in the talos candidate list
+
+        sets talos_hit attribute on the causative variant/s
+        """
+        if self.talos_results:
+            if self.variant1:
+                self.variant1.talos_hit = self.find_causative_variant_in_talos(self.variant1)
+            if self.variant2:
+                self.variant2.talos_hit = self.find_causative_variant_in_talos(self.variant2)
+
+    def find_causative_variant_in_talos(self, causative_variant: CausativeVariant) -> Optional[models.ReportVariant]:
+        """
+        For a given causative variant, find a matching variant in the talos candidate list
+        """
+        for r in self.talos_results:
+            if r.var_data.coordinates.string_format == causative_variant.variant_id:
+                return r
+
+            if causative_variant.variant_type == "CNV_SV" and isinstance(r.var_data, models.StructuralVariant):
+                # CNV_SV match based on gene symbol in the predicted_lof field
+                if causative_variant.gene in r.var_data.info["lof"].split(","):
+                    return r
+        return None
+
+    def find_exomiser_results(self, exomiser_results: dict) -> None:
+        """
+        Look for an exomiser result for this family. If found, find ranks of causative variants
+
+        If exomiser result file is found self.exomiser_results_exists is set to True
+
+        If the causative variant/s are found in the exomiser results, the self.exomiser_rank
+        is set to the highest rank.
+
+        If only one causative variant is found for an AR condition, the family is considered
+        unsolved by exomiser and the rank is set to None
+        """
+
+        self.exomiser_results = {}
+
+        # result blocks in this file look like
+        # "chr1:1234567:G:C": [
+        #     {
+        #         "rank": 1,
+        #         "moi": "AD"
+        #     },
+        #     {
+        #         "rank": 2,
+        #         "moi": "AR"
+        #     },
+        # ],
+        for key, values in exomiser_results.get(self.sample_id, {}).items():
+            new_key = key.replace("chr", "").replace(":", "-")
+            # Variants can appear multiple times in the exomiser results (eg AD/AR)
+            # For this analysis we are only interested in presence/absense so we
+            # will only keep the highest ranking variant
+            self.exomiser_results[new_key] = min([entry["rank"] for entry in values])
+
+        # true if an exomiser block was found for this proband
+        if self.exomiser_results:
+            self.exomiser_results_exists = True
+
+        # Find the rank of the causative variants in exomiser results
+        if self.variant1:
+            rank_1 = self.exomiser_results.get(self.variant1.variant_id)
+        else:
+            rank_1 = None
+
+        if self.variant2:
+            rank_2 = self.exomiser_results.get(self.variant2.variant_id)
+        else:
+            rank_2 = None
+
+        # Set exomiser_rank if ALL causative variants are found
+        # if two variants are found, use the highest rank
+        if self.variant1 and self.variant2:
+            if rank_1 is not None and rank_2 is not None:
+                self.exomiser_rank = max(rank_1, rank_2)
+                self.solved_by_exomiser = True
+        elif self.variant1 and rank_1 is not None:
+            self.exomiser_rank = rank_1
+            self.solved_by_exomiser = True
+
+    def summarise_catagory_counts(self):
+        """
+        Summaries the number of candidates labeled with each category.
+        Returns a pair of Counter objects, one for all candidates and one for candidates with a single category label
+
+        There is a skip-included here to only count each unique variant once. This matches the behaviour in the above
+        talos_candidate_count method. Category annotations are applied at the variant level, not the sample/gene level,
+        so counting each variant instance uniquely leads to correct 'event' counts.
+        """
+
+        if not self.talos_results:
+            return None
+
+        all_counts = collections.Counter()
+        unique_counts = collections.Counter()
+
+        seen: set[str] = set()
+        for r in self.talos_results:
+            var_string = r.var_data.coordinates.string_format
+            if var_string in seen:
+                continue
+
+            seen.add(var_string)
+
+            all_counts.update(set(r.categories.keys()))
+            if len(r.categories) == 1:
+                unique_counts.update(set(r.categories.keys()))
+
+        return all_counts, unique_counts
+
+
+def parse_truth_data(
+    truth_tsv_path: str,
+    process_only_trios: bool,
+    subcohort_label: str,
+    in_scope_variant_types: set,
+    in_scope_genotype_errors: bool,
+    in_scope_mosaics: bool,
+    in_scope_incomplete_penetrance: bool,
+    in_scope_intergenic: bool,
+):
+    """
+    Parse the truth data from tsv file
+
+    Returns a list of Family objects
+    """
+    families = []
+    for fam in csv.DictReader(AnyPath(truth_tsv_path).open(), delimiter="\t"):
+        if fam["variant_1_type"]:
+            v1 = CausativeVariant(
+                variant_id=fam["variant_1"].strip().removeprefix("chr").replace(":", "-"),
+                gene=fam["causative_gene"],
+                variant_type=fam["variant_1_type"],
+                variant_description=fam["variant_1_description"],
+            )
+        else:
+            v1 = None
+
+        if fam["variant_2_type"]:
+            v2 = CausativeVariant(
+                variant_id=fam["variant_2"].strip().removeprefix("chr").replace(":", "-"),
+                gene=fam["causative_gene"],
+                variant_type=fam["variant_2_type"],
+                variant_description=fam["variant_2_description"],
+            )
+        else:
+            v2 = None
+        family = Family(**fam, variant1=v1, variant2=v2, subcohort=subcohort_label)
+
+        family.in_scope_variant_types = in_scope_variant_types
+        family.in_scope_genotype_errors = in_scope_genotype_errors
+        family.in_scope_mosaics = in_scope_mosaics
+        family.in_scope_incomplete_penetrance = in_scope_incomplete_penetrance
+        family.in_scope_intergenic = in_scope_intergenic
+
+        if process_only_trios and not family.trio:
+            continue
+
+        # Add scope
+        families.append(family)
+
+    return families
+
+
+def mcnemar_exomiser_vs_talos(families, top_n=None, verbose=True):
+    """
+    Compute Talos-only vs Exomiser-only discordant counts at a given Exomiser top-N threshold
+    and apply McNemar's exact test (binomial test with p=0.5 on discordants).
+
+    Args:
+        families: iterable of Family objects already annotated with Talos/Exomiser results
+        top_n: None or 'all' for unconstrained Exomiser success, or an integer N for top-N
+        verbose: if True, print a one-line summary plus the family_id lists
+
+    Returns:
+        dict with keys: a, b, c, d, p_value, talos_only_ids, exomiser_only_ids
+          where:
+            a = both succeed
+            b = Talos-only
+            c = Exomiser-only
+            d = neither
+    """
+    # Eligible: solved by manual truth, Exomiser results exist, SNV/indel diagnoses
+    relevant = [f for f in families if f.solved and f.exomiser_results_exists and f.variant_types == {"SNV_INDEL"}]
+
+    if not relevant:
+        if verbose:
+            print(
+                "McNemar Talos vs Exomiser: no eligible families (need solved SNV/indel cases with Exomiser results)."
+            )
+        return {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "p_value": 1.0,
+            "talos_only_ids": [],
+            "exomiser_only_ids": [],
+        }
+
+    a = b = c = d = 0
+    talos_only_ids = []
+    exomiser_only_ids = []
+
+    for f in relevant:
+        talos_success = bool(f.solved_by_talos)
+        if top_n in (None, "all"):
+            exomiser_success = bool(f.solved_by_exomiser)
+        else:
+            exomiser_success = bool(
+                f.solved_by_exomiser and f.exomiser_rank is not None and f.exomiser_rank <= int(top_n)
+            )
+
+        if talos_success and exomiser_success:
+            a += 1
+        elif talos_success and not exomiser_success:
+            b += 1
+            talos_only_ids.append(f.family_id)
+        elif (not talos_success) and exomiser_success:
+            c += 1
+            exomiser_only_ids.append(f.family_id)
+        else:
+            d += 1
+
+    # Exact two-sided binomial p-value for McNemar's test on discordants (requires SciPy)
+    n = b + c
+    if n == 0:
+        p_value = 1.0
+    else:
+        p_value = binomtest(b, n, p=0.5, alternative="two-sided").pvalue
+
+    # Totals for printed summary
+    talos_tp = a + b
+    exomiser_tp = a + c
+    total_rel = len(relevant)
+
+    if verbose:
+        label = "all" if top_n in (None, "all") else f"top-{top_n}"
+        print(
+            f"{label}: relevant samples={total_rel}; "
+            f"Talos TP={talos_tp} ({talos_tp / total_rel * 100:.1f}%), "
+            f"Exomiser TP={exomiser_tp} ({exomiser_tp / total_rel * 100:.1f}%); "
+            f"discordants b={b}, c={c}; McNemar test p={p_value:.4g}"
+        )
+
+    return {
+        "a": a,
+        "b": b,
+        "c": c,
+        "d": d,
+        "p_value": p_value,
+        "talos_only_ids": talos_only_ids,
+        "exomiser_only_ids": exomiser_only_ids,
+    }
+
+
+def generate_summary_stats(families):
+    total_families = len(families)
+    families_analysed_by_talos = len([f for f in families if f.analysed_by_talos])
+    solved_families = len([f for f in families if f.solved])
+    solved_families_analysed_by_talos = len([f for f in families if f.solved and f.analysed_by_talos])
+    solved_in_scope_families = len([f for f in families if f.solved_in_scope])
+    solved_in_scope_families_analysed_by_talos = len([f for f in families if f.solved_in_scope and f.analysed_by_talos])
+
+    # solved_by_talos = len([f for f in families if f.solved_by_talos_and_in_scope])
+    solved_by_talos = len([f for f in families if f.solved_by_talos])
+    solved_by_talos_w_phen_match = len([f for f in families if f.solved_by_talos and f.talos_phenotype_match_found])
+    solved_by_talos_in_scope = len([f for f in families if f.solved_by_talos and f.solved_in_scope])
+    solved_by_talos_w_phen_match_in_scope = len(
+        [f for f in families if f.solved_by_talos and f.solved_in_scope and f.talos_phenotype_match_found]
+    )
+
+    pct_talos_solved_all = solved_by_talos / solved_families_analysed_by_talos * 100
+    pct_talos_solved_in_scope = solved_by_talos_in_scope / solved_in_scope_families_analysed_by_talos * 100
+    pct_talos_solved_w_phen_match = solved_by_talos_w_phen_match / solved_families_analysed_by_talos * 100
+    pct_talos_solved_w_phen_match_in_scope = (
+        solved_by_talos_w_phen_match_in_scope / solved_in_scope_families_analysed_by_talos * 100
+    )
+
+    candidate_counts = collections.Counter()
+    unique_candidate_counts = collections.Counter()
+    for f in families:
+        if f.talos_results:
+            fam_candidate_counts, fam_unique_candidate_counts = f.summarise_catagory_counts()
+            # print(f.summarise_catagory_counts())
+            candidate_counts += fam_candidate_counts
+            unique_candidate_counts += fam_unique_candidate_counts
+
+    candidate_counts_string = "\n".join([f"\t\t{k}: {v}" for k, v in candidate_counts.most_common()])
+    unique_candidate_counts_string = "\n".join([f"\t\t{k}: {v}" for k, v in unique_candidate_counts.most_common()])
+
+    summary_stats = f"""
+        Total families: {total_families}
+        Families considered solved: {solved_families} ({solved_families / total_families * 100:.1f}%)
+        Families considered solved and in scope: {solved_in_scope_families} ({solved_in_scope_families / solved_families * 100:.1f}%)
+        Families considered solved and in scope, analysed by Talos: {solved_in_scope_families_analysed_by_talos} ({solved_in_scope_families_analysed_by_talos / solved_families_analysed_by_talos * 100:.1f}%)
+
+        Solved by talos: {solved_by_talos} ( {pct_talos_solved_all:.1f}% of all solved)
+        Solved by talos with phenotype match: {solved_by_talos_w_phen_match} ( {pct_talos_solved_w_phen_match:.1f}% of all solved)
+
+        Solved by talos and IN scope: {solved_by_talos_in_scope} ({pct_talos_solved_in_scope:.1f}% of in scope)
+        Solved by talos with phenotype match and IN scope: {solved_by_talos_w_phen_match_in_scope} ({pct_talos_solved_w_phen_match_in_scope:.1f}% of in scope)
+        Solved by talos and OUT of scope: {len([f for f in families if f.solved_by_talos and not f.solved_in_scope])}
+
+        NOT solved by talos - IN scope: {len([f for f in families if f.solved_in_scope and not f.solved_by_talos])}
+        NOT solved by talos - OUT of scope: {len([f for f in families if f.solved and not f.solved_by_talos and not f.solved_in_scope])}
+
+        Average number of talos candidates per family: {sum([f.talos_candidate_count for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+        Max number of talos candidates per family: {max([f.talos_candidate_count for f in families if f.talos_results])}
+        Average number of talos candidates per family with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+        Max number of talos candidates per family with phenotype match: {max([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])}
+        Average number of talos candidate genes per family: {sum([f.talos_candidate_gene_count for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+        Average number of talos candidate genes per family with phenotype match: {sum([f.talos_candidate_gene_count_w_phe_match for f in families if f.talos_results]) / families_analysed_by_talos:.1f}
+
+        Total number of talos candidates: {sum([f.talos_candidate_count for f in families if f.talos_results])}
+        Total number of talos candidates with phenotype match: {sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results])}
+
+        Count of talos candidates per category:
+    {candidate_counts_string}
+        Count of talos candidates per category (candidate with only a single category):
+    {unique_candidate_counts_string}
+
+        Pct of candidates that are causative: {solved_by_talos / sum([f.talos_candidate_count for f in families if f.talos_results]) * 100:.1f}%
+        Pct of candidates with phenotype match that are causative: {solved_by_talos_w_phen_match / sum([f.talos_candidate_count_w_phe_match for f in families if f.talos_results]) * 100:.1f}%
+        """
+
+    return summary_stats
+
+
+def write_per_family_results(families, out_tsv):
+    """
+    Write a summary tsv with one line per family with all features. Allows easy
+    filtering and sorting in a excel etc
+    """
+
+    fieldnames = [
+        "family_id",
+        "individual_id",
+        "subcohort",
+        "trio",
+        "solved",
+        "in_scope",
+        "genotyping_error",
+        "mosaic",
+        "incomplete_penetrance",
+        "intergenic",
+        "causative_gene",
+        "causative_variants",
+        "causative_types",
+        "solved_by_talos",
+        "talos_phenotype_match_found",
+        "notes",
+        "exomiser_rank",
+        "solved_by_exomiser",
+        "talos_candidate_count",
+        "talos_candidate_count_w_phe_match",
+        "talos_candidate_gene_count",
+        "talos_candidate_gene_count_w_phe_match",
+    ]
+
+    writer = csv.DictWriter(out_tsv, fieldnames=fieldnames, delimiter="\t")
+    writer.writeheader()
+
+    for family in families:
+        writer.writerow(
+            {
+                "family_id": family.family_id,
+                "individual_id": family.individual_id,
+                "subcohort": family.subcohort,
+                "trio": family.trio,
+                "solved": family.solved,
+                "in_scope": family.solved_in_scope,
+                "genotyping_error": family.genotyping_error,
+                "mosaic": family.mosaic,
+                "incomplete_penetrance": family.incomplete_penetrance,
+                "intergenic": family.intergenic,
+                "causative_gene": family.causative_gene,
+                "causative_variants": ",".join(
+                    [
+                        x
+                        for x in [
+                            family.variant1.variant_id if family.variant1 else None,
+                            family.variant2.variant_id if family.variant2 else None,
+                        ]
+                        if x
+                    ]
+                ),
+                "causative_types": ",".join(
+                    [
+                        x
+                        for x in [
+                            family.variant1.variant_type if family.variant1 else None,
+                            family.variant2.variant_type if family.variant2 else None,
+                        ]
+                        if x
+                    ]
+                ),
+                "solved_by_talos": family.solved_by_talos,
+                "talos_phenotype_match_found": family.talos_phenotype_match_found,
+                "notes": "| ".join(
+                    [
+                        x
+                        for x in [
+                            (family.variant1.variant_description if family.variant1 else None),
+                            (family.variant2.variant_description if family.variant2 else None),
+                        ]
+                        if x
+                    ]
+                ),
+                "exomiser_rank": family.exomiser_rank,
+                "solved_by_exomiser": family.solved_by_exomiser,
+                "talos_candidate_count": family.talos_candidate_count,
+                "talos_candidate_count_w_phe_match": family.talos_candidate_count_w_phe_match,
+                "talos_candidate_gene_count": family.talos_candidate_gene_count,
+                "talos_candidate_gene_count_w_phe_match": family.talos_candidate_gene_count_w_phe_match,
+            }
+        )
+
+
+def cli_main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "in_scope_variants",
+        help="Varint types to include in the evaluation",
+        choices=["all", "core"],
+        default="core",
+    )
+    parser.add_argument(
+        "--cohort",
+        help="Cohort to evaluate",
+        choices=COHORT_CONFIG.keys(),
+        default="acute-care",
+    )
+    parser.add_argument(
+        "--exclude_incomplete_penetrance",
+        help="Exclude incomplete penetrance variants from scope",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--exclude_intergenic",
+        help="Exclude intergenic variants from scope",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--genotype_errors_in_scope",
+        help="Include variants that were not correctly called in the VCF from scope",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--exclude_mosaic",
+        help="Exclude mosaic variants from scope",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--process_full_trios_only",
+        help="process only trios",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--summary_tsv",
+        help="Output path for summary tsv",
+        type=argparse.FileType("w"),
+        default="summary.tsv",
+    )
+
+    args, unknown = parser.parse_known_args()
+
+    sub_cohorts_config = COHORT_CONFIG[args.cohort]
+
+    if args.in_scope_variants == "all":
+        in_scope_variants = VARIANT_TYPES_ALL
+    else:
+        in_scope_variants = VARIANT_TYPES_BASIC
+
+    if unknown:
+        raise ValueError(unknown)
+    main(
+        in_scope_variants=in_scope_variants,
+        sub_cohorts_config=sub_cohorts_config,
+        process_only_trios=args.process_full_trios_only,
+        in_scope_incomplete_penetrance=not args.exclude_incomplete_penetrance,
+        in_scope_intergenic=not args.exclude_intergenic,
+        in_scope_genotype_errors=args.genotype_errors_in_scope,
+        in_scope_mosaics=not args.exclude_mosaic,
+        summary_tsv=args.summary_tsv,
+    )
+
+
+def main(
+    in_scope_variants: set,
+    sub_cohorts_config: dict,
+    process_only_trios: bool,
+    in_scope_incomplete_penetrance: bool,
+    in_scope_intergenic: bool,
+    in_scope_genotype_errors: bool,
+    in_scope_mosaics: bool,
+    summary_tsv,
+):
+    """ """
+
+    # Parse families from truth data
+    families = []
+    for subcohort_label, subcohort_dict in sub_cohorts_config.items():
+        print(f"Processing subcohort {subcohort_label} from {subcohort_dict['talos_results']}")
+        print(f"Truth data: {subcohort_dict['truth_tsv_path']}")
+        print(f"process_only_trios: {process_only_trios}")
+        print(
+            f"Variant types: {in_scope_variants}, mosaics: {in_scope_mosaics}, incomplete penetrance: {in_scope_incomplete_penetrance}, intergenic: {in_scope_intergenic}, genotype errors: {in_scope_genotype_errors} \n"
+        )
+        talos_results = read_json_from_path(subcohort_dict["talos_results"], return_model=models.ResultData)
+
+        sub_cohort_families = parse_truth_data(
+            truth_tsv_path=subcohort_dict["truth_tsv_path"],
+            process_only_trios=process_only_trios,
+            subcohort_label=subcohort_label,
+            in_scope_variant_types=in_scope_variants,
+            in_scope_genotype_errors=in_scope_genotype_errors,
+            in_scope_mosaics=in_scope_mosaics,
+            in_scope_incomplete_penetrance=in_scope_incomplete_penetrance,
+            in_scope_intergenic=in_scope_intergenic,
+        )
+
+        # look for exomiser results
+        if exomiser_results_path := subcohort_dict.get("exomiser_results"):
+            # single aggregate of all exomiser results
+            exomiser_results = json.load(AnyPath(exomiser_results_path).open())
+        else:
+            exomiser_results = None
+
+        # Annotate families with talos results
+        for family in sub_cohort_families:
+            # Allow for sample_id or individual_id to be used as the key in the talos results
+            if family.sample_id in talos_results.results:
+                use_id = family.sample_id
+            elif family.individual_id in talos_results.results:
+                use_id = family.individual_id
+            else:
+                family.talos_results = None
+                continue
+
+            family.analysed_by_talos = True
+
+            # Add talos results to family filtered to only those found in current run (excludes historical only candidates)
+            family.talos_results = [r for r in talos_results.results[use_id].variants if r.found_in_current_run]
+            family.find_causative_variants_in_talos_results()
+
+            if exomiser_results:
+                family.find_exomiser_results(exomiser_results)
+
+        families.extend(sub_cohort_families)
+
+    # Write summary stats to stdout
+    summary_stats = generate_summary_stats(families)
+    print(summary_stats)
+
+    if exomiser_results:
+        print("\n\n", "#Exomiser summary:\n")
+        for n in [None, 10, 5, 1]:  # None -> 'all'
+            mcnemar_exomiser_vs_talos(families, top_n=n, verbose=True)
+
+    # Write per family results to tsv
+    if summary_tsv:
+        write_per_family_results(families, summary_tsv)
+
+
+if __name__ == "__main__":
+    cli_main()
