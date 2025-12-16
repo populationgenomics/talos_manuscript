@@ -1,0 +1,11 @@
+matplotlib
+pandas
+numpy
+webcolors
+plotly
+pywaffle
+opencv-python
+kaleido
+nbformat
+reportlab
+pypdf
