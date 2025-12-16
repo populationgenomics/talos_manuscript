@@ -1,0 +1,6 @@
+Panel A is generated using Analyses/Jupyter_notebooks/Figure3_panelA.ipynb
+Panes B and C are generated with Analyses/Jupyter_notebooks/Figure3_panels_BC.ipynb
+Panel D was generated with powerpoint ( Figures/Fig3/Fig3_panel_D.pptx) then exported to pdf(Figures/Fig3/Fig3_panel_D.pdf)
+
+Individual panels were combined and annotated with Affinity Designer then exported to final PDF:
+Figures/Fig3/Fig3.pdf
