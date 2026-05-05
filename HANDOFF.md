@@ -134,19 +134,13 @@ Reduce/increase `MARGIN_BOTTOM`. Watch panel B's "Date of entry into reanalysis 
 
 ## Gotchas
 
-1. **The figure file is `Figure3_panelA.ipynb` but produces all of A+B+C.** Renaming to `Figure3.ipynb` and deleting the now-redundant `Figure3_panels_BC.ipynb` is on the punch list (see *Outstanding tasks* below). The sibling cell `869ea925` does `! open ../../Figures/Fig3/Fig3_panels_ABC.pdf`.
-2. **CLAUDE.md still lists `Figure3_panelA.ipynb` and `Figure3_panels_BC.ipynb` as separate files.** Update when you rename.
-3. **Don't add `Figure3_panels_BC.ipynb` regenerations to the new cell** — its data/figures are now produced by `Figure3_panelA.ipynb`.
-4. **Pre-existing un-related changes in working tree** that should NOT be committed as part of this refactor:
-   - `Figures/Fig3/Fig3_panel_D.pdf` and `.pptx` (panel D PowerPoint work, separate)
-   - `Figures/Fig3/Fig3.afdesign~lock~`, `~$Fig3_panel_D.pptx` (Affinity / PowerPoint lock files)
+1. **The notebook file is still `Figure3_panelA.ipynb` despite producing all of A+B+C.** A rename to `Figure3.ipynb` is on the punch list — if you do it, also update the sibling cell `869ea925` (which `! open`s the output PDF). Cell IDs are preserved across rename.
+2. **PowerPoint / Affinity lock files** (`Figures/Fig3/Fig3.afdesign~lock~`, `Figures/Fig3/~$Fig3_panel_D.pptx`) are normal byproducts of having the apps open — never commit them.
 
 ## Outstanding tasks
 
-1. **Rename file** `Figure3_panelA.ipynb` → `Figure3.ipynb`, update cell `869ea925` if needed, delete redundant `Figure3_panels_BC.ipynb`.
-2. **Update CLAUDE.md** — the layout description currently lists the two notebooks as separate.
-3. **Commit** to `R3_tweaks`. Stage only the notebook + `Fig3_panels_ABC.pdf`; leave the panel D / lock files / untracked CLAUDE.md alone.
-4. **Compose final Fig3.pdf** in Affinity from `Fig3_panels_ABC.pdf` + `Fig3_panel_D.pdf`. The notebook places a `d` placeholder; the actual panel D content is added manually.
+1. **Rename notebook** `Figure3_panelA.ipynb` → `Figure3.ipynb` (legacy name no longer reflects what the notebook produces).
+2. **Recompose final Fig3.pdf** in Affinity Designer if the layout has changed since the last manual recomposition. The notebook places a `d` placeholder; actual panel D content is added manually.
 
 ## Conversation summary so we don't go in circles
 

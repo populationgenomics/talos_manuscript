@@ -10,7 +10,6 @@ There's no library code here — every script/notebook is a leaf that consumes d
 - `Analyses/Jupyter_notebooks/` — figure notebooks. Each reads CSVs from `../../Data/{Fig2,Fig3}/` and writes PDFs to `../../Figures/{Fig2,Fig3}/`. **Always launch notebooks from this directory** — the relative paths assume it.
   - `Figure2.ipynb` — Figure 2.
   - `Figure3_panelA.ipynb` — **Figure 3 panels A, B, C in one figure** (despite the legacy filename). Outputs `Figures/Fig3/Fig3_panels_ABC.pdf`. Panel D is composed manually (see below).
-  - `Figure3_panels_BC.ipynb` — superseded by the unified `Figure3_panelA.ipynb`; slated for deletion.
 - `Data/` — input CSVs. Fig3 filenames embed a date (e.g. `Talos_solves_VCGS-prospective_261128.csv`); when data refreshes, both the file and the `pd.read_csv(...)` path in the notebook need to change together.
 - `Figures/Fig3/Fig3.afdesign` — Affinity Designer master that composes per-panel PDFs into the final `Fig3.pdf`. Re-running notebooks regenerates per-panel PDFs but does **not** rebuild `Fig3.pdf` — that step is manual.
 - `*/pre-submission/` — frozen artifacts kept for provenance. Don't edit; current figure work lives in the non-`pre-submission` siblings.
