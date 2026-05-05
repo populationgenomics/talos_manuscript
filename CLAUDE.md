@@ -9,7 +9,7 @@ This repository accompanies the Talos manuscript. It contains the evaluation scr
 ## Layout
 
 - `Analyses/evaluation/talos_evaluation.py` — CLI that scores Talos (and Exomiser) against per-cohort gold-standard TSVs. Cohort → input-path mapping is hard-coded in `COHORT_CONFIG` near the top of the file. Inputs are pulled from `gs://cpg-*` buckets via `cloudpathlib.AnyPath`, so running it requires GCS auth and Talos installed (see below).
-- `Analyses/Jupyter_notebooks/` — `Figure2.ipynb` and `Figure3_panelA.ipynb`. Despite its legacy name, `Figure3_panelA.ipynb` now produces panels A, B, and C in a single matplotlib `Figure` (output: `Figures/Fig3/Fig3_panels_ABC.pdf`). Each notebook reads CSVs from `../../Data/{Fig2,Fig3}/` and writes PDFs to `../../Figures/{Fig2,Fig3}/`; the relative paths assume launch from this directory.
+- `Analyses/Jupyter_notebooks/` — `Figure2.ipynb` and `Figure3.ipynb`. `Figure3.ipynb` produces panels A, B, and C in a single matplotlib `Figure` (output: `Figures/Fig3/Fig3_panels_ABC.pdf`). Each notebook reads CSVs from `../../Data/{Fig2,Fig3}/` and writes PDFs to `../../Figures/{Fig2,Fig3}/`; the relative paths assume launch from this directory.
 - `Analyses/Jupyter_notebooks/pre-submission/` and `Data/pre-submission/`, `Figures/pre-submission/` — superseded artifacts kept for provenance. Don't edit; current figure work lives in the non-`pre-submission` siblings.
 - `Data/` — input CSVs for the notebooks. The Fig3 CSV filenames embed a date (e.g. `Talos_solves_VCGS-prospective_261128.csv`) — when the data refreshes, both the file in `Data/Fig3/` and the `pd.read_csv(...)` path in the notebook need to change together.
 - `Figures/Fig3/Fig3.afdesign` — Affinity Designer master that composes the per-panel PDFs into the final `Fig3.pdf`. Panel D originates from `Fig3_panel_D.pptx` (PowerPoint), exported to `Fig3_panel_D.pdf`. Re-running notebooks regenerates the per-panel PDFs but does **not** rebuild `Fig3.pdf`; that step is manual in Affinity Designer.
@@ -22,7 +22,7 @@ This repository accompanies the Talos manuscript. It contains the evaluation scr
 cd Analyses/Jupyter_notebooks
 source venv/bin/activate           # venv is checked-out-but-gitignored
 pip install -r requirements.txt    # only needed for a fresh venv
-jupyter lab Figure2.ipynb          # or Figure3_panelA.ipynb (produces all of A+B+C)
+jupyter lab Figure2.ipynb          # or Figure3.ipynb (produces all of A+B+C)
 ```
 
 Run notebooks from `Analyses/Jupyter_notebooks/` — they use `../../Data/...` and `../../Figures/...` paths and will silently write to or fail in the wrong place if launched elsewhere.

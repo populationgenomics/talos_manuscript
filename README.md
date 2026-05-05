@@ -9,7 +9,7 @@ There's no library code here — every script/notebook is a leaf that consumes d
 - `Analyses/evaluation/talos_evaluation.py` — CLI that scores Talos (and Exomiser) against per-cohort gold-standard TSVs. Cohort → input-path mapping is hard-coded in `COHORT_CONFIG`. Reads `gs://cpg-*` buckets via `cloudpathlib.AnyPath`, so running it needs GCS auth and Talos installed.
 - `Analyses/Jupyter_notebooks/` — figure notebooks. Each reads CSVs from `../../Data/{Fig2,Fig3}/` and writes PDFs to `../../Figures/{Fig2,Fig3}/`. **Always launch notebooks from this directory** — the relative paths assume it.
   - `Figure2.ipynb` — Figure 2.
-  - `Figure3_panelA.ipynb` — **Figure 3 panels A, B, C in one figure** (despite the legacy filename). Outputs `Figures/Fig3/Fig3_panels_ABC.pdf`. Panel D is composed manually (see below).
+  - `Figure3.ipynb` — **Figure 3 panels A, B, C in one figure**. Outputs `Figures/Fig3/Fig3_panels_ABC.pdf`. Panel D is composed manually (see below).
 - `Data/` — input CSVs. Fig3 filenames embed a date (e.g. `Talos_solves_VCGS-prospective_261128.csv`); when data refreshes, both the file and the `pd.read_csv(...)` path in the notebook need to change together.
 - `Figures/Fig3/Fig3.afdesign` — Affinity Designer master that composes per-panel PDFs into the final `Fig3.pdf`. Re-running notebooks regenerates per-panel PDFs but does **not** rebuild `Fig3.pdf` — that step is manual.
 - `*/pre-submission/` — frozen artifacts kept for provenance. Don't edit; current figure work lives in the non-`pre-submission` siblings.
@@ -42,15 +42,15 @@ jupyter lab Figure2.ipynb
 
 ### Figure 3 (panels A + B + C)
 
-The whole figure (panels A, B, C) is built by a **single matplotlib `Figure`** in cell `a04cd0f7` of `Figure3_panelA.ipynb`. Top-level layout: a 2×2 `GridSpec` with panel A spanning the top row and panels B/C side-by-side in the bottom row. Panels B and C are post-shifted vertically via `set_position` so they sit higher than the gridspec would naturally place them, leaving room beneath for panel D.
+The whole figure (panels A, B, C) is built by a **single matplotlib `Figure`** in cell `a04cd0f7` of `Figure3.ipynb`. Top-level layout: a 2×2 `GridSpec` with panel A spanning the top row and panels B/C side-by-side in the bottom row. Panels B and C are post-shifted vertically via `set_position` so they sit higher than the gridspec would naturally place them, leaving room beneath for panel D.
 
 ```bash
 cd Analyses/Jupyter_notebooks
-jupyter lab Figure3_panelA.ipynb
+jupyter lab Figure3.ipynb
 # or render headless:
 python -c "
 import json, os
-nb = json.load(open('Figure3_panelA.ipynb'))
+nb = json.load(open('Figure3.ipynb'))
 import matplotlib; matplotlib.use('Agg')
 exec(''.join(nb['cells'][0]['source']).replace('plt.show()', ''))
 "

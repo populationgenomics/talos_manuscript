@@ -3,8 +3,8 @@
 ## Where we are
 
 **Branch:** `R3_tweaks`.
-**Working file:** [`Analyses/Jupyter_notebooks/Figure3_panelA.ipynb`](Analyses/Jupyter_notebooks/Figure3_panelA.ipynb), cell `a04cd0f7`.
-**Output PDF:** [`Figures/Fig3/Fig3_panels_ABC.pdf`](Figures/Fig3/Fig3_panels_ABC.pdf) (uncommitted).
+**Working file:** [`Analyses/Jupyter_notebooks/Figure3.ipynb`](Analyses/Jupyter_notebooks/Figure3.ipynb), cell `a04cd0f7`.
+**Output PDF:** [`Figures/Fig3/Fig3_panels_ABC.pdf`](Figures/Fig3/Fig3_panels_ABC.pdf).
 
 The single cell now builds **panels A, B, C in one figure**. Panel D is composed manually in Affinity Designer beneath a `d` placeholder label that the cell already draws.
 
@@ -14,7 +14,7 @@ The single cell now builds **panels A, B, C in one figure**. Panel D is composed
 cd /Users/cas/dev/talos_manuscript-clean
 /Users/cas/dev/talos_manuscript-clean/Analyses/Jupyter_notebooks/venv/bin/python -c "
 import json, os
-nb = json.load(open('Analyses/Jupyter_notebooks/Figure3_panelA.ipynb'))
+nb = json.load(open('Analyses/Jupyter_notebooks/Figure3.ipynb'))
 src = ''.join(nb['cells'][0]['source'])
 os.chdir('Analyses/Jupyter_notebooks')
 import matplotlib; matplotlib.use('Agg')
@@ -134,13 +134,12 @@ Reduce/increase `MARGIN_BOTTOM`. Watch panel B's "Date of entry into reanalysis 
 
 ## Gotchas
 
-1. **The notebook file is still `Figure3_panelA.ipynb` despite producing all of A+B+C.** A rename to `Figure3.ipynb` is on the punch list — if you do it, also update the sibling cell `869ea925` (which `! open`s the output PDF). Cell IDs are preserved across rename.
-2. **PowerPoint / Affinity lock files** (`Figures/Fig3/Fig3.afdesign~lock~`, `Figures/Fig3/~$Fig3_panel_D.pptx`) are normal byproducts of having the apps open — never commit them.
+- **PowerPoint / Affinity lock files** (`Figures/Fig3/Fig3.afdesign~lock~`, `Figures/Fig3/~$Fig3_panel_D.pptx`) are normal byproducts of having the apps open — never commit them.
+- The sibling cell `869ea925` does `! open ../../Figures/Fig3/Fig3_panels_ABC.pdf` — keep this in sync if the output filename ever changes.
 
 ## Outstanding tasks
 
-1. **Rename notebook** `Figure3_panelA.ipynb` → `Figure3.ipynb` (legacy name no longer reflects what the notebook produces).
-2. **Recompose final Fig3.pdf** in Affinity Designer if the layout has changed since the last manual recomposition. The notebook places a `d` placeholder; actual panel D content is added manually.
+- **Recompose final Fig3.pdf** in Affinity Designer when the panel layout changes (or panel D content updates). The notebook places a `d` placeholder; actual panel D content is added manually.
 
 ## Conversation summary so we don't go in circles
 
