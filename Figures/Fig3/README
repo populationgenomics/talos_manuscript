@@ -1,6 +1,10 @@
-Panel A is generated using Analyses/Jupyter_notebooks/Figure3_panelA.ipynb
-Panes B and C are generated with Analyses/Jupyter_notebooks/Figure3_panels_BC.ipynb
-Panel D was generated with powerpoint ( Figures/Fig3/Fig3_panel_D.pptx) then exported to pdf(Figures/Fig3/Fig3_panel_D.pdf)
+Panels A, B, and C are generated together by Analyses/Jupyter_notebooks/Figure3_panelA.ipynb (despite the legacy filename) and exported to Fig3_panels_ABC.pdf.
+Panel D is built in PowerPoint (Fig3_panel_D.pptx) and exported to Fig3_panel_D.pdf.
 
-Individual panels were combined and annotated with Affinity Designer then exported to final PDF:
-Figures/Fig3/Fig3.pdf
+The two PDFs are composed and annotated in Affinity Designer (Fig3.afdesign) and exported to the final Fig3.pdf. The notebook draws a 'd' placeholder label at the position where panel D should sit in the final composition.
+
+Stale per-panel artifacts kept for provenance only:
+  Fig3_panelA.pdf, Fig3_panelA_legend.pdf — superseded by Fig3_panels_ABC.pdf
+  Fig3_panel_B.pdf, Fig3_panel_C.pdf      — superseded by Fig3_panels_ABC.pdf
+
+For tuning the Fig3_panels_ABC layout, see ../../HANDOFF.md.
